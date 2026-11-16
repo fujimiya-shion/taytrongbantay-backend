@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace $CLASS_NAMESPACE$;
 
-/**
- * Persistence adapter: implement interface ở Application/Port/Out,
- * delegate sang Eloquent model trong Domain.
- */
-class $CLASS$ // implements IXxxRepository
+use App\Core\Repositories\GenericRepository;
+
+final class $CLASS$ extends GenericRepository
 {
-    //
+    // public function __construct(Xxx $model)
+    // {
+    //     parent::__construct($model);
+    // }
 }

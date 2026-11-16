@@ -7,12 +7,15 @@ namespace $CLASS_NAMESPACE$;
 use App\Core\Http\Controllers\ApiController;
 
 /**
- * Inbound adapter: chỉ map Request -> Command, gọi Port/In, map Output -> Response.
- * Không chứa business logic, không gọi Eloquent trực tiếp.
+ * Chỉ: validate (FormRequest) -> toCommand() -> gọi UseCase -> trả response.
+ * Không chứa business logic, không query Eloquent trực tiếp.
+ *
+ *   public function store(CreateXxxRequest $request, CreateXxxUseCase $useCase): JsonResponse
+ *   {
+ *       return $this->success($useCase->execute($request->toCommand()), 201);
+ *   }
  */
 class $CLASS$ extends ApiController
 {
-    public function __construct(
-        // private readonly ICreateXxxUseCase $createXxxUseCase,
-    ) {}
+    //
 }

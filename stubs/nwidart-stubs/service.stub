@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace $CLASS_NAMESPACE$;
 
+use App\Shared\UseCases\UseCase;
+
 /**
- * Use case: implement 1 interface ở Application/Port/In,
- * chỉ phụ thuộc Domain và Application/Port/Out.
+ * Business logic của 1 hành động. Nhận Command, trả Output.
+ * Inject thẳng Repository (Infrastructure/Persistence) qua constructor.
  */
-class $CLASS$
+final class $CLASS$ implements UseCase
 {
     public function __construct(
-        // private readonly IXxxRepository $repository,
+        // private readonly XxxRepository $repository,
     ) {}
 
-    public function execute(mixed $command): mixed
-    {
-        //
-    }
+    // public function execute(XxxCommand $command): XxxOutput
+    // {
+    // }
 }

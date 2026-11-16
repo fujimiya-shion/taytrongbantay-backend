@@ -154,27 +154,24 @@ return [
         */
         'generator' => [
             // =================================================================
-            // Module-first + Ports & Adapters (mirror rada360-deploy-tool):
+            // Module-first, 4 tầng (bản rút gọn của rada360-deploy-tool):
             //
-            //   Inbound ──> Application/Port/In ──> Application/UseCase ──> Domain
-            //                                             │
-            //                                             └──> Application/Port/Out
-            //                                                        ^
-            //                                   Infrastructure ──────┘ (implements)
+            //   Inbound ──> Application/UseCase ──> Infrastructure/Persistence
+            //                      │                          │
+            //                      └──────> Domain <──────────┘
             //
-            // - Application chỉ phụ thuộc Domain + Port/Out, không gọi Eloquent
-            //   query builder / Queue / HTTP client trực tiếp.
-            // - Inbound (controller, console) chỉ gọi interface ở Port/In.
-            // - Infrastructure implement Port/Out (repository adapter, publisher...).
+            // - Controller inject thẳng class UseCase (không cần Port/In).
+            // - UseCase dùng thẳng Repository (extends GenericRepository).
+            // - Chỉ tạo interface ở Application/Port/Out khi thật sự cần đổi
+            //   implementation (API ngoài, payment gateway, storage...).
+            // - Request -> Command: FormRequest::toCommand() (không cần Mapper).
             //
-            // Các key không thuộc nwidart (app-command, port-in, ...) chỉ để
-            // sinh folder khi module:make. Class bên trong viết tay hoặc dùng
-            // module:make-interface / module:make-class với sub-path.
+            // Key không thuộc nwidart (app-command, app-output) chỉ
+            // dùng để sinh folder khi module:make.
             // =================================================================
 
             // -----------------------------------------------------------------
-            // 1. DOMAIN: entity (Eloquent model), enum, observer, domain DTO.
-            //    Giữ phẳng như `modules/<x>/domain` bên Java.
+            // 1. DOMAIN: Eloquent model, enum, observer.
             // -----------------------------------------------------------------
             'model'                => ['path' => 'Domain', 'generate' => true],
             'enums'                => ['path' => 'Domain', 'generate' => false],
@@ -185,23 +182,19 @@ return [
             'exceptions'           => ['path' => 'Domain/Exceptions', 'generate' => false],
 
             // -----------------------------------------------------------------
-            // 2. APPLICATION: command (input), output, port/in, port/out, usecase.
-            //    php artisan module:make-interface In/ICreateUserUseCase Identity
-            //    php artisan module:make-interface Out/IUserRepository Identity
+            // 2. APPLICATION: command (input), output, usecase.
             //    php artisan module:make-service CreateUserUseCase Identity
+            //    php artisan module:make-interface IPaymentGateway Identity   (khi cần)
             // -----------------------------------------------------------------
             'app-command'          => ['path' => 'Application/Command', 'generate' => true],
             'app-output'           => ['path' => 'Application/Output', 'generate' => true],
-            'interfaces'           => ['path' => 'Application/Port', 'generate' => false],
-            'port-in'              => ['path' => 'Application/Port/In', 'generate' => true],
-            'port-out'             => ['path' => 'Application/Port/Out', 'generate' => true],
             'services'             => ['path' => 'Application/UseCase', 'generate' => true],
             'actions'              => ['path' => 'Application/UseCase', 'generate' => false],
-            'app-mapper'           => ['path' => 'Application/Mapper', 'generate' => false],
+            'interfaces'           => ['path' => 'Application/Port/Out', 'generate' => false],
             'policies'             => ['path' => 'Application/Policies', 'generate' => false],
 
             // -----------------------------------------------------------------
-            // 3. INBOUND: REST controller, request/response DTO, mapper, console.
+            // 3. INBOUND: REST controller, request/resource, console.
             // -----------------------------------------------------------------
             'controller'           => ['path' => 'Inbound/Rest/V1/Controllers', 'generate' => true],
             'request'              => ['path' => 'Inbound/Rest/V1/Dtos', 'generate' => true],
@@ -209,13 +202,12 @@ return [
             'filter'               => ['path' => 'Inbound/Rest/V1/Middleware', 'generate' => false],
             'rules'                => ['path' => 'Inbound/Rest/V1/Rules', 'generate' => false],
             'routes'               => ['path' => 'Inbound/Rest/V1/Routes', 'generate' => true],
-            'inbound-mapper'       => ['path' => 'Inbound/Mapper', 'generate' => true],
             'command'              => ['path' => 'Inbound/Console', 'generate' => false],
             'command_replacements' => ['path' => 'Inbound/Console/Replacements', 'generate' => false],
 
             // -----------------------------------------------------------------
-            // 4. INFRASTRUCTURE: persistence adapter, messaging, seeder, provider.
-            //    Eloquent<X>RepositoryAdapter implements Port/Out/I<X>Repository.
+            // 4. INFRASTRUCTURE: repository, migration, seeder, provider.
+            //    php artisan module:make-repository UserRepository Identity
             // -----------------------------------------------------------------
             'repository'           => ['path' => 'Infrastructure/Persistence', 'generate' => true],
             'migration'            => ['path' => 'Infrastructure/Persistence/Migrations', 'generate' => true],
