@@ -1,8 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
 namespace $CLASS_NAMESPACE$;
 
+/**
+ * Use case: implement 1 interface ở Application/Port/In,
+ * chỉ phụ thuộc Domain và Application/Port/Out.
+ */
 class $CLASS$
 {
-    public function handle() {}
+    public function __construct(
+        // private readonly IXxxRepository $repository,
+    ) {}
+
+    public function execute(mixed $command): mixed
+    {
+        //
+    }
 }

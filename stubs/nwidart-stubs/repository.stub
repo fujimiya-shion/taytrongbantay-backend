@@ -1,8 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace $CLASS_NAMESPACE$;
 
-class $CLASS$
+/**
+ * Persistence adapter: implement interface ở Application/Port/Out,
+ * delegate sang Eloquent model trong Domain.
+ */
+class $CLASS$ // implements IXxxRepository
 {
-    public function handle() {}
+    //
 }

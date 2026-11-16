@@ -1,7 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace $CLASS_NAMESPACE$;
 
-use Illuminate\Routing\Controller;
+use App\Core\Http\Controllers\ApiController;
 
-class $CLASS$ extends Controller {}
+/**
+ * Inbound adapter: chỉ map Request -> Command, gọi Port/In, map Output -> Response.
+ * Không chứa business logic, không gọi Eloquent trực tiếp.
+ */
+class $CLASS$ extends ApiController
+{
+    public function __construct(
+        // private readonly ICreateXxxUseCase $createXxxUseCase,
+    ) {}
+}

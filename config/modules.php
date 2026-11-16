@@ -35,19 +35,17 @@ return [
     |
     */
     'stubs' => [
-        'enabled' => false,
-        'path' => base_path('vendor/nwidart/laravel-modules/src/Commands/stubs'),
+        // Stub trong stubs/nwidart-stubs override stub của vendor;
+        // stub nào không có thì nwidart tự fallback về vendor.
+        'enabled' => true,
+        'path' => base_path('stubs/nwidart-stubs'),
+
+        // API-only: không sinh web route, views, assets, vite, package.json.
+        // Không sinh composer.json riêng cho module vì App\Modules\* đã được
+        // autoload bởi PSR-4 "App\\" => "app/" của root composer.json.
         'files' => [
-            'routes/web' => 'routes/web.php',
-            'routes/api' => 'routes/api.php',
-            'views/index' => 'resources/views/index.blade.php',
-            'views/master' => 'resources/views/components/layouts/master.blade.php',
-            'scaffold/config' => 'config/config.php',
-            'composer' => 'composer.json',
-            'assets/js/app' => 'resources/assets/js/app.js',
-            'assets/sass/app' => 'resources/assets/sass/app.scss',
-            'vite' => 'vite.config.js',
-            'package' => 'package.json',
+            'routes/api' => 'Inbound/Rest/V1/Routes/api.php',
+            'scaffold/config' => 'Config/config.php',
         ],
         'replacements' => [
             /**
@@ -156,64 +154,97 @@ return [
         */
         'generator' => [
             // =================================================================
-            // 1. DOMAIN LAYER (Dùng Models làm Domain Model, không dùng Entities)
+            // Module-first + Ports & Adapters (mirror rada360-deploy-tool):
+            //
+            //   Inbound ──> Application/Port/In ──> Application/UseCase ──> Domain
+            //                                             │
+            //                                             └──> Application/Port/Out
+            //                                                        ^
+            //                                   Infrastructure ──────┘ (implements)
+            //
+            // - Application chỉ phụ thuộc Domain + Port/Out, không gọi Eloquent
+            //   query builder / Queue / HTTP client trực tiếp.
+            // - Inbound (controller, console) chỉ gọi interface ở Port/In.
+            // - Infrastructure implement Port/Out (repository adapter, publisher...).
+            //
+            // Các key không thuộc nwidart (app-command, port-in, ...) chỉ để
+            // sinh folder khi module:make. Class bên trong viết tay hoặc dùng
+            // module:make-interface / module:make-class với sub-path.
             // =================================================================
-            'model'                => ['path' => 'Domain/Models', 'generate' => true],
-            'vo'                   => ['path' => 'Domain/ValueObjects', 'generate' => true],
-            'repository'           => ['path' => 'Domain/Repositories', 'generate' => true],
-            'interfaces'           => ['path' => 'Domain/Contracts', 'generate' => false],
+
+            // -----------------------------------------------------------------
+            // 1. DOMAIN: entity (Eloquent model), enum, observer, domain DTO.
+            //    Giữ phẳng như `modules/<x>/domain` bên Java.
+            // -----------------------------------------------------------------
+            'model'                => ['path' => 'Domain', 'generate' => true],
+            'enums'                => ['path' => 'Domain', 'generate' => false],
+            'observer'             => ['path' => 'Domain', 'generate' => false],
+            'casts'                => ['path' => 'Domain/Casts', 'generate' => false],
+            'scopes'               => ['path' => 'Domain/Scopes', 'generate' => false],
             'event'                => ['path' => 'Domain/Events', 'generate' => false],
-            'enums'                => ['path' => 'Domain/Enums', 'generate' => false],
             'exceptions'           => ['path' => 'Domain/Exceptions', 'generate' => false],
-            'rules'                => ['path' => 'Domain/Rules', 'generate' => false],
-            'policies'             => ['path' => 'Domain/Policies', 'generate' => false],
 
-            // =================================================================
-            // 2. APPLICATION LAYER (Use Cases, Actions, DTOs, Listeners, Jobs)
-            // =================================================================
-            'usecases'             => ['path' => 'Application/UseCases', 'generate' => true],
-            'actions'              => ['path' => 'Application/Actions', 'generate' => false],
-            'services'             => ['path' => 'Application/Services', 'generate' => false],
-            'listener'             => ['path' => 'Application/Listeners', 'generate' => false],
-            'jobs'                 => ['path' => 'Application/Jobs', 'generate' => false],
-            'job-middleware'       => ['path' => 'Application/Jobs/Middleware', 'generate' => false],
-            'notifications'        => ['path' => 'Application/Notifications', 'generate' => false],
-            'emails'               => ['path' => 'Application/Emails', 'generate' => false],
+            // -----------------------------------------------------------------
+            // 2. APPLICATION: command (input), output, port/in, port/out, usecase.
+            //    php artisan module:make-interface In/ICreateUserUseCase Identity
+            //    php artisan module:make-interface Out/IUserRepository Identity
+            //    php artisan module:make-service CreateUserUseCase Identity
+            // -----------------------------------------------------------------
+            'app-command'          => ['path' => 'Application/Command', 'generate' => true],
+            'app-output'           => ['path' => 'Application/Output', 'generate' => true],
+            'interfaces'           => ['path' => 'Application/Port', 'generate' => false],
+            'port-in'              => ['path' => 'Application/Port/In', 'generate' => true],
+            'port-out'             => ['path' => 'Application/Port/Out', 'generate' => true],
+            'services'             => ['path' => 'Application/UseCase', 'generate' => true],
+            'actions'              => ['path' => 'Application/UseCase', 'generate' => false],
+            'app-mapper'           => ['path' => 'Application/Mapper', 'generate' => false],
+            'policies'             => ['path' => 'Application/Policies', 'generate' => false],
 
-            // =================================================================
-            // 3. INFRASTRUCTURE LAYER (Persistence, Providers, Config, DB)
-            // =================================================================
-            'mappers'              => ['path' => 'Infrastructure/Persistence/Mappers', 'generate' => false],
-            'eloquent-repositories'=> ['path' => 'Infrastructure/Persistence/Repositories', 'generate' => true],
-            'casts'                => ['path' => 'Infrastructure/Persistence/Casts', 'generate' => false],
-            'scopes'               => ['path' => 'Infrastructure/Persistence/Scopes', 'generate' => false],
-            'observer'             => ['path' => 'Infrastructure/Persistence/Observers', 'generate' => false],
+            // -----------------------------------------------------------------
+            // 3. INBOUND: REST controller, request/response DTO, mapper, console.
+            // -----------------------------------------------------------------
+            'controller'           => ['path' => 'Inbound/Rest/V1/Controllers', 'generate' => true],
+            'request'              => ['path' => 'Inbound/Rest/V1/Dtos', 'generate' => true],
+            'resource'             => ['path' => 'Inbound/Rest/V1/Dtos', 'generate' => false],
+            'filter'               => ['path' => 'Inbound/Rest/V1/Middleware', 'generate' => false],
+            'rules'                => ['path' => 'Inbound/Rest/V1/Rules', 'generate' => false],
+            'routes'               => ['path' => 'Inbound/Rest/V1/Routes', 'generate' => true],
+            'inbound-mapper'       => ['path' => 'Inbound/Mapper', 'generate' => true],
+            'command'              => ['path' => 'Inbound/Console', 'generate' => false],
+            'command_replacements' => ['path' => 'Inbound/Console/Replacements', 'generate' => false],
+
+            // -----------------------------------------------------------------
+            // 4. INFRASTRUCTURE: persistence adapter, messaging, seeder, provider.
+            //    Eloquent<X>RepositoryAdapter implements Port/Out/I<X>Repository.
+            // -----------------------------------------------------------------
+            'repository'           => ['path' => 'Infrastructure/Persistence', 'generate' => true],
+            'migration'            => ['path' => 'Infrastructure/Persistence/Migrations', 'generate' => true],
+            'factory'              => ['path' => 'Infrastructure/Persistence/Factories', 'generate' => false],
+            'seeder'               => ['path' => 'Infrastructure/Seeders', 'generate' => true],
+
+            'listener'             => ['path' => 'Infrastructure/Messaging/Listeners', 'generate' => false],
+            'jobs'                 => ['path' => 'Infrastructure/Messaging/Jobs', 'generate' => false],
+            'job-middleware'       => ['path' => 'Infrastructure/Messaging/Jobs/Middleware', 'generate' => false],
+            'channels'             => ['path' => 'Infrastructure/Messaging/Broadcasting', 'generate' => false],
+            'notifications'        => ['path' => 'Infrastructure/Notifications', 'generate' => false],
+            'emails'               => ['path' => 'Infrastructure/Mail', 'generate' => false],
 
             'provider'             => ['path' => 'Infrastructure/Providers', 'generate' => true],
             'route-provider'       => ['path' => 'Infrastructure/Providers', 'generate' => true],
-            'command'              => ['path' => 'Infrastructure/Console', 'generate' => false],
-            'command_replacements' => ['path' => 'Infrastructure/Console/Replacements', 'generate' => false],
-            'channels'             => ['path' => 'Infrastructure/Broadcasting', 'generate' => false],
-            'class'                => ['path' => 'Infrastructure/Classes', 'generate' => false],
-            'helpers'              => ['path' => 'Infrastructure/Helpers', 'generate' => false],
-            'traits'               => ['path' => 'Infrastructure/Traits', 'generate' => false],
-
-            'config'               => ['path' => 'Infrastructure/Config', 'generate' => true],
-            'factory'              => ['path' => 'Infrastructure/Database/Factories', 'generate' => true],
-            'migration'            => ['path' => 'Infrastructure/Database/Migrations', 'generate' => true],
-            'seeder'               => ['path' => 'Infrastructure/Database/Seeders', 'generate' => true],
+            'event-provider'       => ['path' => 'Infrastructure/Providers', 'generate' => false],
+            'class'                => ['path' => 'Infrastructure/Support', 'generate' => false],
+            'helpers'              => ['path' => 'Infrastructure/Support', 'generate' => false],
+            'traits'               => ['path' => 'Infrastructure/Support', 'generate' => false],
             'lang'                 => ['path' => 'Infrastructure/Lang', 'generate' => false],
 
-            // =================================================================
-            // 4. INBOUND LAYER (REST API V1)
-            // =================================================================
-            'controller'           => ['path' => 'Inbound/Rest/V1', 'generate' => true],
-            'request'              => ['path' => 'Inbound/Rest/V1/Requests', 'generate' => false],
-            'resource'             => ['path' => 'Inbound/Rest/V1/Resources', 'generate' => false],
-            'filter'               => ['path' => 'Inbound/Rest/V1/Middleware', 'generate' => false],
-            'routes'               => ['path' => 'Inbound/Rest/V1/Routes', 'generate' => true],
+            // -----------------------------------------------------------------
+            // 5. CONFIG (giống `modules/<x>/config` bên Java).
+            // -----------------------------------------------------------------
+            'config'               => ['path' => 'Config', 'generate' => true],
 
-            // UI / Views (Tắt mặc định cho API)
+            // -----------------------------------------------------------------
+            // 6. WEB UI: tắt (API-only).
+            // -----------------------------------------------------------------
             'component-class'      => ['path' => 'Inbound/Web/Components', 'generate' => false],
             'component-view'       => ['path' => 'Inbound/Web/views/components', 'generate' => false],
             'views'                => ['path' => 'Inbound/Web/views', 'generate' => false],
@@ -221,9 +252,9 @@ return [
             'inertia'              => ['path' => 'Inbound/Web/js/Pages', 'generate' => false],
             'inertia-components'   => ['path' => 'Inbound/Web/js/Components', 'generate' => false],
 
-            // =================================================================
-            // 5. TESTS
-            // =================================================================
+            // -----------------------------------------------------------------
+            // 7. TESTS
+            // -----------------------------------------------------------------
             'test-feature'         => ['path' => 'Tests/Feature', 'generate' => true],
             'test-unit'            => ['path' => 'Tests/Unit', 'generate' => true],
         ],

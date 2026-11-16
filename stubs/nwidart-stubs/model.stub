@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 %%END_FACTORY%%
-use Illuminate\Database\Eloquent\Model;
+use App\Core\Models\BaseModel;
 %%START_FACTORY%%
 use $FACTORY_CLASS$;
 %%END_FACTORY%%
@@ -20,7 +20,7 @@ use $FACTORY_CLASS$;
 %%START_ATTRIBUTES%%
 #[Fillable($FILLABLE$)]
 %%END_ATTRIBUTES%%
-class $CLASS$ extends Model
+class $CLASS$ extends BaseModel
 {
 %%START_FACTORY%%
     /** @use HasFactory<$FACTORY$> */
