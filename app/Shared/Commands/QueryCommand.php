@@ -23,6 +23,6 @@ use App\Core\Support\Criteria\QueryCriteria;
 abstract readonly class QueryCommand extends BaseCommand
 {
     public function __construct(
-        public QueryCriteria $criteria = new QueryCriteria(),
+        public QueryCriteria $criteria = new QueryCriteria,
     ) {}
 }

@@ -1,0 +1,6 @@
+    public function destroy(int $id, Delete{{ Name }}UseCase $useCase): JsonResponse
+    {
+        $useCase->execute(new Delete{{ Name }}Command($id));
+
+        return $this->success(null);
+    }

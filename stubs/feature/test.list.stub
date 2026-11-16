@@ -1,0 +1,10 @@
+
+    public function test_list(): void
+    {
+        {{ Name }}::query()->create([]);
+
+        $this->getJson(self::URI)
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.total', 1);
+    }

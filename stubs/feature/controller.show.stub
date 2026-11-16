@@ -1,0 +1,6 @@
+    public function show(int $id, Get{{ Name }}DetailUseCase $useCase): JsonResponse
+    {
+        $output = $useCase->execute(new Get{{ Name }}DetailCommand($id));
+
+        return $this->success(new {{ Name }}Resource($output->{{ name }}));
+    }

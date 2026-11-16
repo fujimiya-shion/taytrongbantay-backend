@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.controller }};
+
+{{ uses }}
+
+class {{ Name }}Controller extends ApiController
+{
+{{ methods }}
+}

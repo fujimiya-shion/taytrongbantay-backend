@@ -1,0 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.output }};
+
+use {{ ns.model }}\{{ Name }};
+use App\Shared\Outputs\BaseOutput;
+
+final readonly class Get{{ Name }}DetailOutput extends BaseOutput
+{
+    public function __construct(
+        public {{ Name }} ${{ name }},
+    ) {}
+}

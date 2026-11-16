@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.usecase }};
+
+use {{ ns.command }}\{{ Action }}Command;
+use {{ ns.output }}\{{ Action }}Output;
+use App\Shared\UseCases\UseCase;
+
+final class {{ Action }}UseCase implements UseCase
+{
+    public function __construct(
+        // TODO: inject repository của module này hoặc use case của module khác
+    ) {}
+
+    public function execute({{ Action }}Command $command): {{ Action }}Output
+    {
+        // TODO: business logic
+
+        return new {{ Action }}Output;
+    }
+}

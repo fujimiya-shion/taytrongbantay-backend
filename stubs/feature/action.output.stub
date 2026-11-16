@@ -1,0 +1,14 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.output }};
+
+use App\Shared\Outputs\BaseOutput;
+
+final readonly class {{ Action }}Output extends BaseOutput
+{
+    public function __construct(
+        // TODO: dữ liệu trả về cho controller
+    ) {}
+}

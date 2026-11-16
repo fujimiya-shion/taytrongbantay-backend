@@ -116,24 +116,48 @@ Chỉ tạo interface trong `Application/Port/Out` khi tích hợp **dịch vụ
 
 ## 6. Sinh code
 
-Luôn dùng generator để file vào đúng chỗ, rồi sửa nội dung:
+**Luôn sinh khung bằng lệnh, không tự tạo file tay** (trừ khi không có lệnh nào phù hợp). Sinh xong thì điền vào các dòng `TODO`.
+
+### Ưu tiên 1: `make:feature` cho entity có CRUD
+
+```bash
+php artisan make:feature <Entity> <Module>                       # list, show, create, update, delete
+php artisan make:feature <Entity> <Module> --actions=list,show   # chỉ các action cần
+```
+
+Sinh đủ: model, migration, repository, Command/Output/UseCase cho từng action, FormRequest, Resource, controller, route (`/api/v1/<entities>`), feature test. Code sinh ra chạy được và test pass ngay. File đã tồn tại thì bị bỏ qua (không dùng `--force` nếu người dùng không yêu cầu).
+
+Sau khi sinh, phải làm hết các `TODO`:
+1. Migration: thêm cột.
+2. Model: `$fillable`, `$hidden`, quan hệ.
+3. Command + FormRequest: field và `rules()`; key của `rules()` trùng tên tham số constructor Command.
+4. UseCase: map field Command → mảng `create()` / `update()`, thêm logic nghiệp vụ.
+5. Resource: field trả ra. Controller: `allowedSorts`.
+6. Test: dữ liệu hợp lệ cho cột bắt buộc, thêm case lỗi validate và lỗi nghiệp vụ.
+
+### Ưu tiên 2: `make:action` cho hành động không phải CRUD
+
+```bash
+php artisan make:action <VerbObject> <Module>           # vd: PublishPost, ApproveOrder
+php artisan make:action <VerbObject> <Module> --query   # hành động đọc, Command extends QueryCommand
+```
+
+Sinh `Application/Command/<X>Command`, `Application/Output/<X>Output`, `Application/UseCase/<X>UseCase`. Không thêm hậu tố vào tên. Method controller, route, FormRequest thì tự thêm theo mẫu ở mục 8, vào controller đã có của entity đó.
+
+### Lệnh lẻ cho các loại file còn lại
 
 | Cần | Lệnh | Vị trí |
 |---|---|---|
 | Module mới | `module:make <Module> --api` | `app/Modules/<Module>` |
-| Model | `module:make-model <Model> <Module>` | `Domain/` |
 | Enum | `module:make-enum <Name> <Module>` | `Domain/` |
-| Migration | `module:make-migration create_<table>_table <Module>` | `Infrastructure/Persistence/Migrations/` |
-| Repository | `module:make-repository <Model>Repository <Module>` | `Infrastructure/Persistence/` |
-| UseCase | `module:make-service <Action>UseCase <Module>` | `Application/UseCase/` |
+| Exception nghiệp vụ | `module:make-exception <Name> <Module>` | `Domain/Exceptions/` |
+| Migration sửa bảng | `module:make-migration add_<col>_to_<table>_table <Module>` | `Infrastructure/Persistence/Migrations/` |
 | FormRequest | `module:make-request <Action>Request <Module>` | `Inbound/Rest/V1/Dtos/` |
-| API Resource | `module:make-resource <Model>Resource <Module>` | `Inbound/Rest/V1/Dtos/` |
-| Controller | `module:make-controller <Resource>Controller <Module> --api` | `Inbound/Rest/V1/Controllers/` |
 | Seeder | `module:make-seed <Name> <Module>` | `Infrastructure/Seeders/` |
 | Test | `module:make-test <Name> <Module> [--feature]` | `Tests/Unit` hoặc `Tests/Feature` |
 | Port/Out | `module:make-interface I<Name> <Module>` | `Application/Port/Out/` |
 
-`Command` và `Output` không có generator, tạo file tay trong `Application/Command/` và `Application/Output/`.
+Template của `make:feature` / `make:action` nằm ở `stubs/feature/`. Không sửa template nếu không được yêu cầu.
 
 ## 7. Quy ước đặt tên
 

@@ -1,0 +1,14 @@
+
+    public function test_show(): void
+    {
+        ${{ name }} = {{ Name }}::query()->create([]);
+
+        $this->getJson(self::URI.'/'.${{ name }}->id)
+            ->assertOk()
+            ->assertJsonPath('data.id', ${{ name }}->id);
+    }
+
+    public function test_show_returns_404_when_missing(): void
+    {
+        $this->getJson(self::URI.'/999999')->assertNotFound();
+    }

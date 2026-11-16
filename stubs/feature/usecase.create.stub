@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.usecase }};
+
+use {{ ns.command }}\Create{{ Name }}Command;
+use {{ ns.output }}\Create{{ Name }}Output;
+use {{ ns.repository }}\{{ Name }}Repository;
+use App\Shared\UseCases\UseCase;
+
+final class Create{{ Name }}UseCase implements UseCase
+{
+    public function __construct(
+        private readonly {{ Name }}Repository ${{ names }},
+    ) {}
+
+    public function execute(Create{{ Name }}Command $command): Create{{ Name }}Output
+    {
+        // TODO: kiểm tra nghiệp vụ, ném exception trong Domain/Exceptions nếu vi phạm.
+
+        ${{ name }} = $this->{{ names }}->create([
+            // TODO: 'title' => $command->title,
+        ]);
+
+        return new Create{{ Name }}Output(${{ name }});
+    }
+}

@@ -1,0 +1,11 @@
+    public function index(Request $request, Get{{ Name }}ListUseCase $useCase): JsonResponse
+    {
+        $criteria = GenericQueryParams::fromRequest($request)
+            ->toCriteria(allowedSorts: ['id', 'created_at']);
+
+        $output = $useCase->execute(new Get{{ Name }}ListCommand($criteria));
+
+        return $this->success(
+            $output->paginator->through(fn ({{ Name }} ${{ name }}) => new {{ Name }}Resource(${{ name }}))
+        );
+    }

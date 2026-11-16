@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.test }};
+
+use {{ ns.model }}\{{ Name }};
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+final class {{ Name }}ApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private const URI = '/api/v1/{{ uri }}';
+
+    // TODO: khi model có cột bắt buộc, truyền dữ liệu hợp lệ vào create() và các request bên dưới.
+{{ methods }}
+}

@@ -1,0 +1,9 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.command }};
+
+use App\Shared\Commands\QueryCommand;
+
+final readonly class Get{{ Name }}ListCommand extends QueryCommand {}

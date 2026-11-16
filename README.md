@@ -647,23 +647,61 @@ Ví dụ: API tạo user trong module `Identity`.
 php artisan module:make Identity --api
 ```
 
-### 2. Sinh các class
+### 2. Sinh khung sườn bằng `make:feature`
+
+Một lệnh sinh đủ bộ CRUD cho một entity, đúng thư mục và đúng flow:
 
 ```bash
-php artisan module:make-model User Identity                  # Domain/User.php
-php artisan module:make-migration create_users_table Identity
-php artisan module:make-repository UserRepository Identity   # Infrastructure/Persistence/
-php artisan module:make-request CreateUserRequest Identity   # Inbound/Rest/V1/Dtos/
-php artisan module:make-service CreateUserUseCase Identity   # Application/UseCase/
-php artisan module:make-resource UserResource Identity       # Inbound/Rest/V1/Dtos/
-php artisan module:make-controller UserController Identity --api   # Inbound/Rest/V1/Controllers/
+php artisan make:feature User Identity
 ```
 
-`Command` và `Output` thì viết tay trong `Application/Command` và `Application/Output`.
+```
+Domain/User.php                                       Model
+Infrastructure/Persistence/Migrations/..._create_users_table.php
+Infrastructure/Persistence/UserRepository.php         Repository
+Application/Command/  GetUserListCommand, GetUserDetailCommand, CreateUserCommand, UpdateUserCommand, DeleteUserCommand
+Application/Output/   GetUserListOutput, GetUserDetailOutput, CreateUserOutput, UpdateUserOutput
+Application/UseCase/  GetUserListUseCase, GetUserDetailUseCase, CreateUserUseCase, UpdateUserUseCase, DeleteUserUseCase
+Inbound/Rest/V1/Dtos/ CreateUserRequest, UpdateUserRequest, UserResource
+Inbound/Rest/V1/Controllers/UserController.php        index, show, store, update, destroy
+Inbound/Rest/V1/Routes/api.php                        + 5 route /api/v1/users
+Tests/Feature/UserApiTest.php                         Test cho từng endpoint
+```
+
+Code sinh ra **chạy được ngay**: route hoạt động, test pass. Việc còn lại là tìm các dòng `TODO` và điền:
+
+1. Migration: thêm cột, rồi `php artisan migrate`.
+2. Model: `$fillable`, `$hidden`, quan hệ.
+3. Command + FormRequest: khai báo field và `rules()`. Key trong `rules()` phải trùng tên tham số constructor của Command.
+4. UseCase: map field từ Command sang mảng `create()` / `update()`, thêm logic nghiệp vụ.
+5. Resource: chọn field trả ra JSON. Controller: chỉnh `allowedSorts`.
+6. Test: truyền dữ liệu hợp lệ khi model có cột bắt buộc, rồi `php artisan test --filter=UserApiTest`.
+
+Tuỳ chọn:
+
+```bash
+php artisan make:feature Tag Identity --actions=list,show   # chỉ sinh các action cần
+php artisan make:feature User Identity --force              # ghi đè file đã có
+```
+
+Chạy lại lệnh khi file đã tồn tại thì file cũ được **giữ nguyên**, route không bị thêm trùng. Thêm action còn thiếu cho feature đã có: chạy lại với `--actions=...` (controller đã có sẽ không bị sửa, phải tự thêm method).
+
+### 3. Hành động không phải CRUD: `make:action`
+
+```bash
+php artisan make:action PublishPost Identity              # Command (BaseCommand) + Output + UseCase
+php artisan make:action GetPostStatistics Identity --query  # Command extends QueryCommand
+```
+
+Tên là động từ + đối tượng, không kèm hậu tố `Command` / `UseCase`. Lệnh chỉ sinh 3 file của tầng Application; method controller, route và FormRequest (nếu cần) thì tự thêm.
 
 > Chạy qua Docker thì thêm tiền tố `docker compose exec -u sail app` hoặc dùng `sail artisan ...`.
+>
+> Template của hai lệnh nằm trong `stubs/feature/`, code ở `app/Core/Console/Commands/`. Sửa template là mọi feature sinh sau đều đổi theo.
 
-### 3. Viết code
+### 4. Code sau khi điền
+
+Ví dụ phần tạo user sau khi đã điền các `TODO`:
 
 ```php
 // Application/Command/CreateUserCommand.php
@@ -738,7 +776,7 @@ Route::prefix('v1')->name('identity.')->group(function () {
 });
 ```
 
-### 4. Use case dạng đọc (danh sách, chi tiết, tìm kiếm)
+### 5. Use case dạng đọc (danh sách, chi tiết, tìm kiếm)
 
 Flow đọc cũng đi qua `Command` → `UseCase` như flow ghi. Command của flow đọc extend `QueryCommand`, bên trong chứa `QueryCriteria`:
 

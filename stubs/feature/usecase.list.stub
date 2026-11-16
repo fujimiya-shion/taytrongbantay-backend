@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.usecase }};
+
+use {{ ns.command }}\Get{{ Name }}ListCommand;
+use {{ ns.output }}\Get{{ Name }}ListOutput;
+use {{ ns.repository }}\{{ Name }}Repository;
+use App\Shared\UseCases\UseCase;
+
+final class Get{{ Name }}ListUseCase implements UseCase
+{
+    public function __construct(
+        private readonly {{ Name }}Repository ${{ names }},
+    ) {}
+
+    public function execute(Get{{ Name }}ListCommand $command): Get{{ Name }}ListOutput
+    {
+        return new Get{{ Name }}ListOutput($this->{{ names }}->paginate($command->criteria));
+    }
+}

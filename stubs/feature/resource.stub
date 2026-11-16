@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.resource }};
+
+use {{ ns.model }}\{{ Name }};
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/**
+ * @mixin {{ Name }}
+ */
+class {{ Name }}Resource extends JsonResource
+{
+    /**
+     * Chỉ các field khai báo ở đây mới được trả ra JSON.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            // TODO: thêm field
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+        ];
+    }
+}

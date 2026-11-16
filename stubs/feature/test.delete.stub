@@ -1,0 +1,9 @@
+
+    public function test_delete(): void
+    {
+        ${{ name }} = {{ Name }}::query()->create([]);
+
+        $this->deleteJson(self::URI.'/'.${{ name }}->id)->assertOk();
+
+        $this->assertDatabaseMissing('{{ table }}', ['id' => ${{ name }}->id]);
+    }

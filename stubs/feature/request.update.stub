@@ -1,0 +1,34 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.request }};
+
+use {{ ns.command }}\Update{{ Name }}Command;
+use Illuminate\Foundation\Http\FormRequest;
+
+class Update{{ Name }}Request extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            // TODO: 'title' => ['sometimes', 'string', 'max:255'],
+        ];
+    }
+
+    /**
+     * Key trong rules() phải trùng tên tham số constructor của Command.
+     */
+    public function toCommand(int $id): Update{{ Name }}Command
+    {
+        return new Update{{ Name }}Command($id, ...$this->validated());
+    }
+}

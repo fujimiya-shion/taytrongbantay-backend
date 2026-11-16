@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.usecase }};
+
+use {{ ns.command }}\Update{{ Name }}Command;
+use {{ ns.output }}\Update{{ Name }}Output;
+use {{ ns.repository }}\{{ Name }}Repository;
+use App\Shared\UseCases\UseCase;
+
+final class Update{{ Name }}UseCase implements UseCase
+{
+    public function __construct(
+        private readonly {{ Name }}Repository ${{ names }},
+    ) {}
+
+    public function execute(Update{{ Name }}Command $command): Update{{ Name }}Output
+    {
+        // update() tự trả 404 nếu không tìm thấy bản ghi.
+        ${{ name }} = $this->{{ names }}->update($command->id, array_filter([
+            // TODO: 'title' => $command->title,
+        ], fn (mixed $value) => $value !== null));
+
+        return new Update{{ Name }}Output(${{ name }});
+    }
+}

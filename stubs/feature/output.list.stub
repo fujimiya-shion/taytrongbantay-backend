@@ -1,0 +1,9 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.output }};
+
+use App\Shared\Outputs\PaginationOutput;
+
+final readonly class Get{{ Name }}ListOutput extends PaginationOutput {}

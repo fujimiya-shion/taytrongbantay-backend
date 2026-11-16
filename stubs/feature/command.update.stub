@@ -1,0 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.command }};
+
+use App\Shared\Commands\BaseCommand;
+
+final readonly class Update{{ Name }}Command extends BaseCommand
+{
+    public function __construct(
+        public int $id,
+        // TODO: public ?string $title = null,
+    ) {}
+}

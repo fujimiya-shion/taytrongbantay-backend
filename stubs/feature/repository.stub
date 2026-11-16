@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.repository }};
+
+use App\Core\Repositories\GenericRepository;
+use {{ ns.model }}\{{ Name }};
+
+final class {{ Name }}Repository extends GenericRepository
+{
+    public function __construct({{ Name }} $model)
+    {
+        parent::__construct($model);
+    }
+
+    // Thêm method truy vấn riêng ở đây khi GenericRepository không đủ, ví dụ:
+    // public function findBySlug(string $slug): ?{{ Name }}
+    // {
+    //     return $this->first(QueryCriteria::make()->where('slug', $slug));
+    // }
+}

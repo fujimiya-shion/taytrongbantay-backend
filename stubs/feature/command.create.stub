@@ -1,0 +1,14 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.command }};
+
+use App\Shared\Commands\BaseCommand;
+
+final readonly class Create{{ Name }}Command extends BaseCommand
+{
+    public function __construct(
+        // TODO: public string $title,
+    ) {}
+}

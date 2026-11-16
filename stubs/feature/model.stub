@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.model }};
+
+use App\Core\Models\BaseModel;
+
+class {{ Name }} extends BaseModel
+{
+    protected $table = '{{ table }}';
+
+    /**
+     * TODO: khai báo các cột được phép ghi qua create()/update().
+     *
+     * @var list<string>
+     */
+    protected $fillable = [];
+
+    /**
+     * TODO: ẩn các cột nhạy cảm khi serialize (password, token...).
+     *
+     * @var list<string>
+     */
+    protected $hidden = [];
+}

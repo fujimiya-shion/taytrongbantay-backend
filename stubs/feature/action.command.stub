@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.command }};
+
+use {{ commandBaseFqcn }};
+
+final readonly class {{ Action }}Command extends {{ commandBase }}
+{
+{{ commandBody }}
+}

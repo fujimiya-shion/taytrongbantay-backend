@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.usecase }};
+
+use {{ ns.command }}\Get{{ Name }}DetailCommand;
+use {{ ns.output }}\Get{{ Name }}DetailOutput;
+use {{ ns.model }}\{{ Name }};
+use {{ ns.repository }}\{{ Name }}Repository;
+use App\Shared\UseCases\UseCase;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+
+final class Get{{ Name }}DetailUseCase implements UseCase
+{
+    public function __construct(
+        private readonly {{ Name }}Repository ${{ names }},
+    ) {}
+
+    public function execute(Get{{ Name }}DetailCommand $command): Get{{ Name }}DetailOutput
+    {
+        ${{ name }} = $this->{{ names }}->findById($command->id, $command->criteria)
+            ?? throw (new ModelNotFoundException)->setModel({{ Name }}::class, [$command->id]);
+
+        return new Get{{ Name }}DetailOutput(${{ name }});
+    }
+}

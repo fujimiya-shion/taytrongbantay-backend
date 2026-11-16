@@ -1,0 +1,35 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.request }};
+
+use {{ ns.command }}\Create{{ Name }}Command;
+use Illuminate\Foundation\Http\FormRequest;
+
+class Create{{ Name }}Request extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            // TODO: 'title' => ['required', 'string', 'max:255'],
+        ];
+    }
+
+    /**
+     * Key trong rules() phải trùng tên tham số constructor của Command.
+     * Khác tên (vd: first_name -> $firstName) thì map tay từng field.
+     */
+    public function toCommand(): Create{{ Name }}Command
+    {
+        return new Create{{ Name }}Command(...$this->validated());
+    }
+}

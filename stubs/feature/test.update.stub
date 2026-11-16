@@ -1,0 +1,9 @@
+
+    public function test_update(): void
+    {
+        ${{ name }} = {{ Name }}::query()->create([]);
+
+        $this->putJson(self::URI.'/'.${{ name }}->id, [])
+            ->assertOk()
+            ->assertJsonPath('data.id', ${{ name }}->id);
+    }

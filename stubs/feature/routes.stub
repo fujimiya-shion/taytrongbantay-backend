@@ -1,0 +1,4 @@
+
+Route::prefix('v1')->name('{{ moduleLower }}.')->group(function () {
+{{ routes }}
+});

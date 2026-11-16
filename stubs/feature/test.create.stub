@@ -1,0 +1,9 @@
+
+    public function test_create(): void
+    {
+        $this->postJson(self::URI, [])
+            ->assertCreated()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseCount('{{ table }}', 1);
+    }
