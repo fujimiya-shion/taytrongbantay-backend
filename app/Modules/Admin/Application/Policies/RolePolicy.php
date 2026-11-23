@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Policies;
+namespace App\Modules\Admin\Application\Policies;
 
 use Illuminate\Foundation\Auth\User as AuthUser;
 use Spatie\Permission\Models\Role;

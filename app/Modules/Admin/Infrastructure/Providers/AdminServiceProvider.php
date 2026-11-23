@@ -2,9 +2,9 @@
 
 namespace App\Modules\Admin\Infrastructure\Providers;
 
+use App\Modules\Admin\Application\Policies\RolePolicy;
 use App\Modules\Admin\Domain\Port\Out\Persistence\AdminRepositoryInterface;
 use App\Modules\Admin\Infrastructure\Persistence\Implementations\AdminRepository;
-use App\Policies\RolePolicy;
 use Gate;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
