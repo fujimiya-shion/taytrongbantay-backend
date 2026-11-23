@@ -8,11 +8,12 @@ use App\Core\Support\Criteria\QueryCriteria;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
-abstract class GenericRepository implements BaseRepositoryInterface
+abstract class BasePersistenceRepository implements BasePersistenceRepositoryInterface
 {
     public function __construct(
         protected Model $model
@@ -57,6 +58,23 @@ abstract class GenericRepository implements BaseRepositoryInterface
     public function first(?QueryCriteria $criteria = null): ?Model
     {
         return $this->query($criteria)->first();
+    }
+
+    public function createOrUpdate(QueryCriteria|null $criteria = null, array $data): Collection|Model
+    {
+        $records = $this->get($criteria);
+        if(! $records || count($records) == 0)
+            return $this->create($data);
+
+        if($records instanceof Collection) {
+            foreach($records as $record) {
+                $record->fill($data);
+                $record->save();
+            }
+            return $records;
+        }
+
+        throw new ModelNotFoundException("Cannot find model");
     }
 
     public function count(?QueryCriteria $criteria = null): int

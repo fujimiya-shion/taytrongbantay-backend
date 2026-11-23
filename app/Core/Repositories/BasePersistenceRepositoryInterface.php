@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 
-interface BaseRepositoryInterface
+interface BasePersistenceRepositoryInterface
 {
     public function query(?QueryCriteria $criteria = null): Builder;
 
@@ -37,6 +37,8 @@ interface BaseRepositoryInterface
     ): Collection;
 
     public function create(array $data): Model;
+
+    public function createOrUpdate(?QueryCriteria $criteria = null, array $data): Collection|Model;
 
     public function update(int $id, array $data): Model;
 
