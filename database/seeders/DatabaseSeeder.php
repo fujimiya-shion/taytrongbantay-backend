@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use App\Modules\Admin\Infrastructure\Seeders\AdminDatabaseSeeder;
+use App\Module\Admin\Infrastructure\Seeder\AdminDatabaseSeeder;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 

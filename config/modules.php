@@ -13,7 +13,7 @@ return [
     | Default module namespace.
     |
     */
-    'namespace' => 'App\\Modules',
+    'namespace' => 'App\\Module',
 
     /*
     |--------------------------------------------------------------------------
@@ -41,10 +41,10 @@ return [
         'path' => base_path('stubs/nwidart-stubs'),
 
         // API-only: không sinh web route, views, assets, vite, package.json.
-        // Không sinh composer.json riêng cho module vì App\Modules\* đã được
+        // Không sinh composer.json riêng cho module vì App\Module\* đã được
         // autoload bởi PSR-4 "App\\" => "app/" của root composer.json.
         'files' => [
-            'routes/api' => 'Inbound/Rest/V1/Routes/api.php',
+            'routes/api' => 'Inbound/Rest/V1/Route/api.php',
             'scaffold/config' => 'Config/config.php',
         ],
         'replacements' => [
@@ -57,7 +57,7 @@ return [
              *
              * 'composer' => [
              *      // Map the UPPERCASE token to your command class
-             *      'CUSTOM_KEY' => \App\Modules\Support\Replacements\CustomKey::class,
+             *      'CUSTOM_KEY' => \App\Module\Support\Replacements\CustomKey::class,
              *      // You can still list built-in tokens by their names
              *      'LOWER_NAME',
              *      'STUDLY_NAME',
@@ -100,7 +100,7 @@ return [
         | This path will also be added automatically to the list of scanned folders.
         |
         */
-        'modules' => base_path('app/Modules'),
+        'modules' => base_path('app/Module'),
 
         /*
         |--------------------------------------------------------------------------
@@ -156,74 +156,74 @@ return [
             // =================================================================
             // Module-first, 4 tầng (bản rút gọn của rada360-deploy-tool):
             //
-            //   Inbound ──> Application/UseCase ──> Infrastructure/Persistence
-            //                      │                          │
-            //                      └──────> Domain <──────────┘
+            //   Inbound ──> Application/UseCase ──> Domain/Port/Out (interface)
+            //                                              ▲
+            //                    Infrastructure/Persistence/Implementation (cài đặt)
             //
             // - Controller inject thẳng class UseCase (không cần Port/In).
-            // - UseCase dùng thẳng Repository (extends GenericRepository).
-            // - Chỉ tạo interface ở Application/Port/Out khi thật sự cần đổi
-            //   implementation (API ngoài, payment gateway, storage...).
+            // - UseCase inject <Model>RepositoryInterface (Domain/Port/Out/Persistence),
+            //   interface extends Read/WriteRepositoryInterface + method riêng.
+            // - Cài đặt extends BasePersistenceRepository, bind trong <Module>ServiceProvider.
             // - Request -> Command: FormRequest::toCommand() (không cần Mapper).
             //
-            // Key không thuộc nwidart (app-command, app-output) chỉ
-            // dùng để sinh folder khi module:make.
+            // Key không thuộc nwidart (app-command, app-output, repository-interface)
+            // dùng để sinh folder khi module:make và cho make:feature đọc đường dẫn.
             // =================================================================
 
             // -----------------------------------------------------------------
             // 1. DOMAIN: Eloquent model, enum, observer.
             // -----------------------------------------------------------------
-            'model'                => ['path' => 'Domain', 'generate' => true],
-            'enums'                => ['path' => 'Domain', 'generate' => false],
-            'observer'             => ['path' => 'Domain', 'generate' => false],
-            'casts'                => ['path' => 'Domain/Casts', 'generate' => false],
-            'scopes'               => ['path' => 'Domain/Scopes', 'generate' => false],
-            'event'                => ['path' => 'Domain/Events', 'generate' => false],
-            'exceptions'           => ['path' => 'Domain/Exceptions', 'generate' => false],
+            'model'                => ['path' => 'Domain/Model', 'generate' => true],
+            'enums'                => ['path' => 'Domain/Enum', 'generate' => false],
+            'observer'             => ['path' => 'Domain/Observer', 'generate' => false],
+            'casts'                => ['path' => 'Domain/Cast', 'generate' => false],
+            'scopes'               => ['path' => 'Domain/Scope', 'generate' => false],
+            'event'                => ['path' => 'Domain/Event', 'generate' => false],
+            'exceptions'           => ['path' => 'Domain/Exception', 'generate' => false],
+            'repository-interface' => ['path' => 'Domain/Port/Out/Persistence', 'generate' => true],
+            'interfaces'           => ['path' => 'Domain/Port/Out', 'generate' => false],
 
             // -----------------------------------------------------------------
             // 2. APPLICATION: command (input), output, usecase.
             //    php artisan module:make-service CreateUserUseCase Identity
-            //    php artisan module:make-interface IPaymentGateway Identity   (khi cần)
             // -----------------------------------------------------------------
             'app-command'          => ['path' => 'Application/Command', 'generate' => true],
             'app-output'           => ['path' => 'Application/Output', 'generate' => true],
             'services'             => ['path' => 'Application/UseCase', 'generate' => true],
             'actions'              => ['path' => 'Application/UseCase', 'generate' => false],
-            'interfaces'           => ['path' => 'Application/Port/Out', 'generate' => false],
-            'policies'             => ['path' => 'Application/Policies', 'generate' => false],
+            'policies'             => ['path' => 'Application/Policy', 'generate' => false],
 
             // -----------------------------------------------------------------
             // 3. INBOUND: REST controller, request/resource, console.
             // -----------------------------------------------------------------
-            'controller'           => ['path' => 'Inbound/Rest/V1/Controllers', 'generate' => true],
-            'request'              => ['path' => 'Inbound/Rest/V1/Dtos', 'generate' => true],
-            'resource'             => ['path' => 'Inbound/Rest/V1/Dtos', 'generate' => false],
+            'controller'           => ['path' => 'Inbound/Rest/V1/Controller', 'generate' => true],
+            'request'              => ['path' => 'Inbound/Rest/V1/Dto', 'generate' => true],
+            'resource'             => ['path' => 'Inbound/Rest/V1/Dto', 'generate' => false],
             'filter'               => ['path' => 'Inbound/Rest/V1/Middleware', 'generate' => false],
-            'rules'                => ['path' => 'Inbound/Rest/V1/Rules', 'generate' => false],
-            'routes'               => ['path' => 'Inbound/Rest/V1/Routes', 'generate' => true],
+            'rules'                => ['path' => 'Inbound/Rest/V1/Rule', 'generate' => false],
+            'routes'               => ['path' => 'Inbound/Rest/V1/Route', 'generate' => true],
             'command'              => ['path' => 'Inbound/Console', 'generate' => false],
-            'command_replacements' => ['path' => 'Inbound/Console/Replacements', 'generate' => false],
+            'command_replacements' => ['path' => 'Inbound/Console/Replacement', 'generate' => false],
 
             // -----------------------------------------------------------------
             // 4. INFRASTRUCTURE: repository, migration, seeder, provider.
-            //    php artisan module:make-repository UserRepository Identity
+            //    Repository sinh bằng make:feature (kèm interface + binding).
             // -----------------------------------------------------------------
-            'repository'           => ['path' => 'Infrastructure/Persistence', 'generate' => true],
-            'migration'            => ['path' => 'Infrastructure/Persistence/Migrations', 'generate' => true],
-            'factory'              => ['path' => 'Infrastructure/Persistence/Factories', 'generate' => false],
-            'seeder'               => ['path' => 'Infrastructure/Seeders', 'generate' => true],
+            'repository'           => ['path' => 'Infrastructure/Persistence/Implementation', 'generate' => true],
+            'migration'            => ['path' => 'Infrastructure/Persistence/Migration', 'generate' => true],
+            'factory'              => ['path' => 'Infrastructure/Persistence/Factory', 'generate' => false],
+            'seeder'               => ['path' => 'Infrastructure/Seeder', 'generate' => true],
 
-            'listener'             => ['path' => 'Infrastructure/Messaging/Listeners', 'generate' => false],
-            'jobs'                 => ['path' => 'Infrastructure/Messaging/Jobs', 'generate' => false],
-            'job-middleware'       => ['path' => 'Infrastructure/Messaging/Jobs/Middleware', 'generate' => false],
+            'listener'             => ['path' => 'Infrastructure/Messaging/Listener', 'generate' => false],
+            'jobs'                 => ['path' => 'Infrastructure/Messaging/Job', 'generate' => false],
+            'job-middleware'       => ['path' => 'Infrastructure/Messaging/Job/Middleware', 'generate' => false],
             'channels'             => ['path' => 'Infrastructure/Messaging/Broadcasting', 'generate' => false],
-            'notifications'        => ['path' => 'Infrastructure/Notifications', 'generate' => false],
+            'notifications'        => ['path' => 'Infrastructure/Notification', 'generate' => false],
             'emails'               => ['path' => 'Infrastructure/Mail', 'generate' => false],
 
-            'provider'             => ['path' => 'Infrastructure/Providers', 'generate' => true],
-            'route-provider'       => ['path' => 'Infrastructure/Providers', 'generate' => true],
-            'event-provider'       => ['path' => 'Infrastructure/Providers', 'generate' => false],
+            'provider'             => ['path' => 'Infrastructure/Provider', 'generate' => true],
+            'route-provider'       => ['path' => 'Infrastructure/Provider', 'generate' => true],
+            'event-provider'       => ['path' => 'Infrastructure/Provider', 'generate' => false],
             'class'                => ['path' => 'Infrastructure/Support', 'generate' => false],
             'helpers'              => ['path' => 'Infrastructure/Support', 'generate' => false],
             'traits'               => ['path' => 'Infrastructure/Support', 'generate' => false],
@@ -237,18 +237,18 @@ return [
             // -----------------------------------------------------------------
             // 6. WEB UI: tắt (API-only).
             // -----------------------------------------------------------------
-            'component-class'      => ['path' => 'Inbound/Web/Components', 'generate' => false],
-            'component-view'       => ['path' => 'Inbound/Web/views/components', 'generate' => false],
-            'views'                => ['path' => 'Inbound/Web/views', 'generate' => false],
-            'assets'               => ['path' => 'Inbound/Web/assets', 'generate' => false],
-            'inertia'              => ['path' => 'Inbound/Web/js/Pages', 'generate' => false],
-            'inertia-components'   => ['path' => 'Inbound/Web/js/Components', 'generate' => false],
+            'component-class'      => ['path' => 'Inbound/Web/Component', 'generate' => false],
+            'component-view'       => ['path' => 'Inbound/Web/view/component', 'generate' => false],
+            'views'                => ['path' => 'Inbound/Web/view', 'generate' => false],
+            'assets'               => ['path' => 'Inbound/Web/asset', 'generate' => false],
+            'inertia'              => ['path' => 'Inbound/Web/js/Page', 'generate' => false],
+            'inertia-components'   => ['path' => 'Inbound/Web/js/Component', 'generate' => false],
 
             // -----------------------------------------------------------------
             // 7. TESTS
             // -----------------------------------------------------------------
-            'test-feature'         => ['path' => 'Tests/Feature', 'generate' => true],
-            'test-unit'            => ['path' => 'Tests/Unit', 'generate' => true],
+            'test-feature'         => ['path' => 'Test/Feature', 'generate' => true],
+            'test-unit'            => ['path' => 'Test/Unit', 'generate' => true],
         ],
     ],
 

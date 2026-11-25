@@ -1,7 +1,7 @@
 <?php
 
-use App\Core\Console\Commands\MakeActionCommand;
-use App\Core\Console\Commands\MakeFeatureCommand;
+use App\Core\Console\Command\MakeActionCommand;
+use App\Core\Console\Command\MakeFeatureCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;

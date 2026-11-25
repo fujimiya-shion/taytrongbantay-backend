@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace {{ ns.model }};
 
-use App\Core\Models\BaseModel;
+use App\Core\Model\BaseModel;
 
 class {{ Name }} extends BaseModel
 {

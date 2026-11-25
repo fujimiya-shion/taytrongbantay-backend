@@ -6,7 +6,7 @@ namespace {{ ns.usecase }};
 
 use {{ ns.command }}\{{ Action }}Command;
 use {{ ns.output }}\{{ Action }}Output;
-use App\Shared\UseCases\UseCase;
+use App\Shared\UseCase\UseCase;
 
 final class {{ Action }}UseCase implements UseCase
 {

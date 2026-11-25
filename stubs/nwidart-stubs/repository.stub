@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace $CLASS_NAMESPACE$;
 
-use App\Core\Repositories\GenericRepository;
+use App\Core\Repository\BasePersistenceRepository;
 
-final class $CLASS$ extends GenericRepository
+/**
+ * Nên dùng `php artisan make:feature` để sinh repository kèm interface và binding.
+ * Sinh lẻ bằng module:make-repository thì phải tự tạo interface trong
+ * Domain/Port/Out/Persistence và thêm binding vào ServiceProvider của module.
+ */
+final class $CLASS$ extends BasePersistenceRepository // implements XxxRepositoryInterface
 {
     // public function __construct(Xxx $model)
     // {

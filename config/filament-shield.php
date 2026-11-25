@@ -55,7 +55,7 @@ return [
     |
     */
 
-    'auth_provider_model' => 'App\\Modules\\Admin\\Domain\\Model\\Admin',
+    'auth_provider_model' => 'App\\Module\\Admin\\Domain\\Model\\Admin',
 
     /*
     |--------------------------------------------------------------------------

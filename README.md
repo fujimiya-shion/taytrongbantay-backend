@@ -396,10 +396,10 @@ Dùng DBeaver, TablePlus... thì kết nối `localhost:${FORWARD_DB_PORT}` (m�
 | Thành phần | Vị trí |
 |---|---|
 | Đường dẫn | `http://localhost:${APP_PORT}/${ADMIN_PATH}`, mặc định `/admin`. Đổi bằng biến `ADMIN_PATH` trong `.env` |
-| Cấu hình panel (path, guard, plugin, màu) | `app/Modules/Admin/Infrastructure/Providers/FilamentAdminPanelProvider.php` |
-| Model tài khoản quản trị | `app/Modules/Admin/Domain/Model/Admin.php`, bảng `admins` |
+| Cấu hình panel (path, guard, plugin, màu) | `app/Module/Admin/Infrastructure/Provider/FilamentAdminPanelProvider.php` |
+| Model tài khoản quản trị | `app/Module/Admin/Domain/Model/Admin.php`, bảng `admins` |
 | Guard đăng nhập | `admin` (khai báo trong `config/auth.php`) |
-| Seeder tạo super admin | `app/Modules/Admin/Infrastructure/Seeders/AdminDatabaseSeeder.php` |
+| Seeder tạo super admin | `app/Module/Admin/Infrastructure/Seeder/AdminDatabaseSeeder.php` |
 | Cấu hình Shield | `config/filament-shield.php` |
 | Bảng role/permission | `roles`, `permissions`, `model_has_roles`... (`guard_name = admin`) |
 
@@ -420,7 +420,7 @@ SUPER_ADMIN_EMAIL=admin@example.com
 SUPER_ADMIN_PASSWORD=doi-mat-khau-nay
 ```
 
-Seeder đọc hai biến này qua `config('admin.account.email')` / `config('admin.account.password')` (file `app/Modules/Admin/Config/config.php`).
+Seeder đọc hai biến này qua `config('admin.account.email')` / `config('admin.account.password')` (file `app/Module/Admin/Config/config.php`).
 
 **Bước 2. Chạy seeder**
 
@@ -428,7 +428,7 @@ Seeder đọc hai biến này qua `config('admin.account.email')` / `config('adm
 docker compose exec -u sail app php artisan db:seed
 ```
 
-Chỉ một lệnh này là đủ. `DatabaseSeeder` gọi `AdminDatabaseSeeder` (`app/Modules/Admin/Infrastructure/Seeders/`), seeder tự làm hết:
+Chỉ một lệnh này là đủ. `DatabaseSeeder` gọi `AdminDatabaseSeeder` (`app/Module/Admin/Infrastructure/Seeder/`), seeder tự làm hết:
 
 1. Kiểm tra `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`: trống thì dừng với `EmailOrPasswordEmptyException`.
 2. Tìm admin theo email: chưa có thì tạo, có rồi thì cập nhật mật khẩu và tên. Mật khẩu được model tự hash (cast `hashed`).
@@ -449,7 +449,7 @@ Seeder chạy lại bao nhiêu lần cũng được: không tạo trùng tài kh
 Chỉ muốn chạy riêng seeder này:
 
 ```bash
-docker compose exec -u sail app php artisan db:seed --class='App\Modules\Admin\Infrastructure\Seeders\AdminDatabaseSeeder'
+docker compose exec -u sail app php artisan db:seed --class='App\Module\Admin\Infrastructure\Seeder\AdminDatabaseSeeder'
 ```
 
 **Bước 3. Đăng nhập**
@@ -475,7 +475,7 @@ docker compose exec -u sail app php artisan tinker
 ```
 
 ```php
-$admin = App\Modules\Admin\Domain\Model\Admin::create([
+$admin = App\Module\Admin\Domain\Model\Admin::create([
     'name' => 'Nguyen Van A',
     'email' => 'a@example.com',
     'password' => 'mat-khau',   // model tự hash
@@ -580,45 +580,49 @@ stubs/nwidart-stubs/   Template code khi chạy module:make-*
 
 | Thư mục | Nội dung |
 |---|---|
-| `Http/Controllers` | `Controller`, `ApiController` (controller của module extend class này) |
-| `Traits/ApiBehavior` | `success()` / `error()`: format response JSON chuẩn |
-| `Models/BaseModel` | Model của module extend class này |
-| `Repositories` | `BaseRepositoryInterface`, `GenericRepository`: CRUD, phân trang, autocomplete... |
+| `Http/Controller` | `Controller`, `ApiController` (controller của module extend class này) |
+| `Trait/ApiBehavior` | `success()` / `error()`: format response JSON chuẩn |
+| `Model/BaseModel` | Model của module extend class này |
+| `Repository` | `ReadRepositoryInterface`, `WriteRepositoryInterface` (khả năng đọc/ghi dùng chung), `BasePersistenceRepository` (cài đặt Eloquent: CRUD, phân trang, autocomplete...), `RepositoryDecorator` (base cho decorator như cache). Xem [Repository](#repository-interface-cài-đặt-và-decorator) |
 | `Support/Criteria/QueryCriteria` | Điều kiện truy vấn (where, sort, with, phân trang) truyền vào repository |
-| `DTOs` | `BaseQueryParams`, `GenericQueryParams`: đọc query string → `QueryCriteria` |
-| `Providers` | `AppServiceProvider` |
+| `DTO` | `BaseQueryParams`, `GenericQueryParams`: đọc query string → `QueryCriteria` |
+| `Provider` | `AppServiceProvider` |
 
 ### `app/Shared`
 
 | Thư mục | Nội dung |
 |---|---|
-| `UseCases/UseCase` | Interface đánh dấu cho mọi use case |
-| `Commands` | `BaseCommand`, `VoidCommand`, `QueryCommand` (cho use case dạng đọc): input của use case |
-| `Outputs` | `BaseOutput`, `VoidOutput`, `PaginationOutput`: output của use case |
+| `UseCase/UseCase` | Interface đánh dấu cho mọi use case |
+| `Command` | `BaseCommand`, `VoidCommand`, `QueryCommand` (cho use case dạng đọc): input của use case |
+| `Output` | `BaseOutput`, `VoidOutput`, `PaginationOutput`: output của use case |
 | `Security/PasswordHasher` | Hash và kiểm tra mật khẩu |
 
-### `app/Modules/<Module>`
+### `app/Module/<Module>`
 
 ```
 <Module>/
-├── Domain/                          Model Eloquent, enum, observer
+├── Domain/
+│   ├── Model/                       Model Eloquent
+│   ├── Enum/  Observer/  Exception/  Event/
+│   └── Port/Out/
+│       └── Persistence/             <Model>RepositoryInterface: hợp đồng repository của module
 ├── Application/
 │   ├── Command/                     Input của use case (readonly class)
 │   ├── Output/                      Output của use case (readonly class)
-│   ├── UseCase/                     Business logic, mỗi class một hành động
-│   └── Port/Out/                    Interface cho dịch vụ ngoài (chỉ tạo khi cần)
+│   └── UseCase/                     Business logic, mỗi class một hành động
 ├── Inbound/
 │   └── Rest/V1/
-│       ├── Controllers/
-│       ├── Dtos/                    FormRequest, API Resource
-│       └── Routes/api.php           Route của module, tự có prefix /api/v1
+│       ├── Controller/
+│       ├── Dto/                    FormRequest, API Resource
+│       └── Route/api.php           Route của module, tự có prefix /api/v1
 ├── Infrastructure/
-│   ├── Persistence/                 Repository (extends GenericRepository)
-│   │   └── Migrations/              Migration của module, tự được nạp khi migrate
-│   ├── Seeders/
-│   └── Providers/                   ServiceProvider, RouteServiceProvider
+│   ├── Persistence/
+│   │   ├── Implementation/         <Model>Repository: extends BasePersistenceRepository, implements interface
+│   │   └── Migration/              Migration của module, tự được nạp khi migrate
+│   ├── Seeder/
+│   └── Provider/                   ServiceProvider (bind interface → cài đặt), RouteServiceProvider
 ├── Config/config.php                Đọc bằng config('<module>.key')
-└── Tests/{Feature,Unit}
+└── Test/{Feature,Unit}
 ```
 
 Luồng một request (chi tiết ở phần [Luồng xử lý một request](#luồng-xử-lý-một-request)):
@@ -635,9 +639,125 @@ Quy ước:
 - **Controller** chỉ làm 3 việc: nhận request đã validate, gọi use case, trả response. Không viết business logic, không query Eloquent.
 - **Mọi hành động, cả đọc lẫn ghi, đều đi qua UseCase.** Controller không gọi thẳng repository.
 - **UseCase** chứa business logic. Nhận `Command`, trả `Output`, không đụng tới `Request`/`Response`.
-- **Repository** là nơi duy nhất query database.
-- Chỉ tạo interface ở `Application/Port/Out` khi thật sự có khả năng đổi implementation (gọi API ngoài, payment gateway, storage...). CRUD bình thường thì use case inject thẳng repository.
+- **Repository** là nơi duy nhất query database. Use case inject **interface** của repository (`AdminRepositoryInterface`), không inject class cài đặt.
 - Module không gọi thẳng repository của module khác. Cần dữ liệu thì gọi use case của module đó.
+
+### Repository: interface, cài đặt và decorator
+
+Mỗi repository gồm **interface** ở Domain và **cài đặt** ở Infrastructure, nối với nhau bằng binding trong ServiceProvider của module. Ví dụ thật trong module Admin:
+
+```
+app/Core/Repository/
+├── ReadRepositoryInterface      findById, first, get, paginate, count, max, autoComplete
+├── WriteRepositoryInterface     create, createOrUpdate, update, delete
+├── BasePersistenceRepository    cài đặt Eloquent của Read + Write, thêm query() dùng nội bộ
+└── RepositoryDecorator          base cho decorator: chuyển tiếp mọi method Read/Write xuống $inner
+
+app/Module/Admin/
+├── Domain/Port/Out/Persistence/AdminRepositoryInterface        extends Read + Write, + method riêng
+└── Infrastructure/Persistence/Implementation/AdminRepository  extends BasePersistenceRepository, implements interface
+```
+
+**1. Interface: chỉ khai báo method riêng của module**
+
+```php
+// Domain/Port/Out/Persistence/AdminRepositoryInterface.php
+interface AdminRepositoryInterface extends ReadRepositoryInterface, WriteRepositoryInterface
+{
+    public function findByEmail(string $email): ?Admin;
+
+    public function upsertByEmail(string $email, array $attributes): Admin;
+}
+```
+
+- Method chung (`get`, `paginate`, `create`...) có sẵn nhờ `extends ReadRepositoryInterface, WriteRepositoryInterface`. Module chỉ đọc thì chỉ extends `ReadRepositoryInterface`.
+- **Không** extends `BasePersistenceRepositoryInterface`: interface đó có `query()` trả Eloquent `Builder`. Để lộ `query()` ra ngoài thì nơi gọi tự dựng query, đi vòng qua repository và qua lớp cache.
+- Method riêng trả **kiểu cụ thể** (`?Admin`, `Admin`), không trả `?Model`, để nơi gọi khỏi phải `instanceof`.
+
+**2. Cài đặt: kế thừa code CRUD từ Base**
+
+```php
+// Infrastructure/Persistence/Implementation/AdminRepository.php
+class AdminRepository extends BasePersistenceRepository implements AdminRepositoryInterface
+{
+    public function __construct(Admin $model)
+    {
+        parent::__construct($model);
+    }
+
+    public function findByEmail(string $email): ?Admin
+    {
+        $admin = $this->first(QueryCriteria::make()->where('email', $email));
+
+        return $admin instanceof Admin ? $admin : null;
+    }
+}
+```
+
+Bên trong cài đặt được dùng `query()` để viết truy vấn phức tạp; chỉ nơi gọi bên ngoài là không thấy nó.
+
+**3. Binding trong ServiceProvider của module**
+
+```php
+// Infrastructure/Provider/AdminServiceProvider.php
+public array $bindings = [
+    AdminRepositoryInterface::class => AdminRepository::class,
+];
+```
+
+**4. Nơi dùng chỉ biết interface**
+
+```php
+final class LoginAdminUseCase implements UseCase
+{
+    public function __construct(private readonly AdminRepositoryInterface $admins) {}
+}
+
+// hoặc
+app(AdminRepositoryInterface::class)->upsertByEmail($email, [...]);
+```
+
+**5. Thêm decorator (vd cache Redis) mà không sửa nơi dùng**
+
+```php
+// Infrastructure/Persistence/Cache/CachedAdminRepository.php
+final class CachedAdminRepository extends RepositoryDecorator implements AdminRepositoryInterface
+{
+    public function __construct(private readonly AdminRepositoryInterface $admins)
+    {
+        parent::__construct($admins);
+    }
+
+    // Method muốn cache: override.
+    public function findByEmail(string $email): ?Admin
+    {
+        return Cache::remember("admin:email:{$email}", 300, fn () => $this->admins->findByEmail($email));
+    }
+
+    // Method riêng của module: bắt buộc viết (Core không biết nó), ở đây chỉ chuyển tiếp + xoá cache.
+    public function upsertByEmail(string $email, array $attributes): Admin
+    {
+        $admin = $this->admins->upsertByEmail($email, $attributes);
+        Cache::forget("admin:email:{$email}");
+
+        return $admin;
+    }
+
+    // get, paginate, count, first, create, delete...: KHÔNG viết, RepositoryDecorator đã chuyển tiếp sẵn.
+}
+
+// AdminServiceProvider: chỉ đổi binding
+$this->app->bind(AdminRepositoryInterface::class, fn ($app) => new CachedAdminRepository(
+    $app->make(AdminRepository::class),
+));
+```
+
+| Loại method | Ai viết |
+|---|---|
+| Method chung không đổi hành vi (`get`, `paginate`...) | `RepositoryDecorator` trong Core, viết sẵn một lần |
+| Method chung cần thêm logic (cache `findById`, xoá cache khi `update`) | Decorator của module, chỉ những method đó |
+| Method riêng của module (`findByEmail`...) | Decorator của module, bắt buộc |
+
 
 ## Luồng xử lý một request
 
@@ -650,20 +770,20 @@ Phần này đi lần lượt từng bước, từ lúc request vào tới lúc 
 
 | # | Class | File | Trách nhiệm |
 |---|---|---|---|
-| 1 | `IdentityServiceProvider` | `Infrastructure/Providers/` | Đăng ký module: nạp config, migration, route provider |
-| 2 | `RouteServiceProvider` | `Infrastructure/Providers/` | Gắn file route của module vào prefix `/api` |
-| 3 | Route file | `Inbound/Rest/V1/Routes/api.php` | Thêm prefix `/v1`, map URL → method controller |
-| 4 | `UserController` | `Inbound/Rest/V1/Controllers/` | Nhận request, tạo Command, gọi UseCase, trả JSON |
-| 5a | `CreateUserRequest` (ghi) | `Inbound/Rest/V1/Dtos/` | Validate body, đổi thành Command |
-| 5b | `GenericQueryParams` (đọc) | `app/Core/DTOs/` | Đọc query string, đổi thành `QueryCriteria` |
+| 1 | `IdentityServiceProvider` | `Infrastructure/Provider/` | Đăng ký module: nạp config, migration, route provider |
+| 2 | `RouteServiceProvider` | `Infrastructure/Provider/` | Gắn file route của module vào prefix `/api` |
+| 3 | Route file | `Inbound/Rest/V1/Route/api.php` | Thêm prefix `/v1`, map URL → method controller |
+| 4 | `UserController` | `Inbound/Rest/V1/Controller/` | Nhận request, tạo Command, gọi UseCase, trả JSON |
+| 5a | `CreateUserRequest` (ghi) | `Inbound/Rest/V1/Dto/` | Validate body, đổi thành Command |
+| 5b | `GenericQueryParams` (đọc) | `app/Core/DTO/` | Đọc query string, đổi thành `QueryCriteria` |
 | 6 | `QueryCriteria` | `app/Core/Support/Criteria/` | Gói điều kiện where, sort, phân trang |
 | 7 | `CreateUserCommand` / `GetUserListCommand` | `Application/Command/` | Input của use case |
 | 8 | `CreateUserUseCase` / `GetUserListUseCase` | `Application/UseCase/` | Business logic |
-| 9 | `UserRepository` → `GenericRepository` | `Infrastructure/Persistence/`, `app/Core/Repositories/` | Chạy SQL qua Eloquent |
-| 10 | `User` → `BaseModel` | `Domain/`, `app/Core/Models/` | Map bảng `users` |
+| 9 | `UserRepositoryInterface` → `UserRepository` → `BasePersistenceRepository` | `Domain/Port/Out/Persistence/`, `Infrastructure/Persistence/Implementation/`, `app/Core/Repository/` | Chạy SQL qua Eloquent |
+| 10 | `User` → `BaseModel` | `Domain/Model/`, `app/Core/Model/` | Map bảng `users` |
 | 11 | `CreateUserOutput` / `GetUserListOutput` | `Application/Output/` | Output của use case |
-| 12 | `UserResource` | `Inbound/Rest/V1/Dtos/` | Chọn field nào được trả ra JSON |
-| 13 | `ApiController::success()` | `app/Core/Http/Controllers/`, `app/Core/Traits/ApiBehavior` | Bọc data vào format JSON chuẩn |
+| 12 | `UserResource` | `Inbound/Rest/V1/Dto/` | Chọn field nào được trả ra JSON |
+| 13 | `ApiController::success()` | `app/Core/Http/Controller/`, `app/Core/Trait/ApiBehavior` | Bọc data vào format JSON chuẩn |
 
 ```mermaid
 sequenceDiagram
@@ -672,7 +792,7 @@ sequenceDiagram
     participant Ctl as UserController
     participant QP as GenericQueryParams
     participant UC as GetUserListUseCase
-    participant Repo as UserRepository<br/>(GenericRepository)
+    participant Repo as UserRepository<br/>(BasePersistenceRepository)
     participant DB as PostgreSQL
 
     C->>R: GET /api/v1/users?status=active&page=2...
@@ -694,16 +814,16 @@ sequenceDiagram
 
 Trước khi có request nào, Laravel đã nạp sẵn route của mọi module:
 
-1. Package `nwidart/laravel-modules` đọc `modules_statuses.json` để biết module nào đang bật, rồi đọc `app/Modules/<Module>/module.json` của từng module.
+1. Package `nwidart/laravel-modules` đọc `modules_statuses.json` để biết module nào đang bật, rồi đọc `app/Module/<Module>/module.json` của từng module.
 2. `module.json` khai báo provider chính, ví dụ `IdentityServiceProvider`. Class này extend `ModuleServiceProvider` của nwidart, nên tự động:
    - nạp `Config/config.php` vào key `identity` (đọc bằng `config('identity.xxx')`);
-   - đăng ký thư mục `Infrastructure/Persistence/Migrations` để `php artisan migrate` thấy migration của module;
+   - đăng ký thư mục `Infrastructure/Persistence/Migration` để `php artisan migrate` thấy migration của module;
    - đăng ký các provider con trong `$providers`, ở đây là `RouteServiceProvider`.
 3. `RouteServiceProvider::mapApiRoutes()` nạp file route của module:
 
    ```php
    Route::middleware('api')->prefix('api')->name('api.')
-       ->group(module_path($this->name, '/Inbound/Rest/V1/Routes/api.php'));
+       ->group(module_path($this->name, '/Inbound/Rest/V1/Route/api.php'));
    ```
 
 4. Trong file route, module tự thêm `v1`:
@@ -731,12 +851,12 @@ public function index(Request $request, GetUserListUseCase $useCase): JsonRespon
 Laravel tự tạo hai object này (dependency injection). Để tạo `GetUserListUseCase`, container đọc constructor của nó và tạo tiếp dây chuyền phía sau:
 
 ```
-GetUserListUseCase(UserRepository $users)
-    └── UserRepository(User $model)
+GetUserListUseCase(UserRepositoryInterface $users)
+    └── UserRepository(User $model)       ← theo binding trong ServiceProvider của module
             └── User  (một instance model rỗng, chỉ dùng để tạo query)
 ```
 
-Vì vậy không cần đăng ký gì trong ServiceProvider: class cụ thể nào cũng tự được inject.
+Class cụ thể (use case, model) được container tự tạo. Riêng interface thì container cần biết dùng class nào, nên mỗi repository phải có một dòng binding trong `$bindings` của ServiceProvider module.
 
 #### Bước 2. `GenericQueryParams::fromRequest()`: query string → object có kiểu
 
@@ -828,7 +948,7 @@ Use case danh sách đơn giản chỉ có một dòng. Logic như kiểm tra qu
 
 #### Bước 6. Repository dựng câu SQL
 
-`UserRepository` không tự viết `paginate()`, nó dùng của `GenericRepository`:
+`UserRepository` không tự viết `paginate()`, nó dùng của `BasePersistenceRepository`:
 
 ```php
 public function paginate(?QueryCriteria $criteria = null): LengthAwarePaginator
@@ -978,7 +1098,7 @@ public function execute(CreateUserCommand $command): CreateUserOutput
 
 #### Bước 4. Repository ghi DB
 
-`GenericRepository::create()`:
+`BasePersistenceRepository::create()`:
 
 ```php
 DB::beginTransaction();
@@ -1014,7 +1134,7 @@ Trong `bootstrap/app.php`, mọi request tới `api/*` đều được trả l�
 | Dữ liệu không hợp lệ | FormRequest | 422 |
 | `authorize()` trả `false` | FormRequest | 403 |
 | Không tìm thấy bản ghi (`findOrFail`, `firstOrFail`) | Laravel tự bắt `ModelNotFoundException` | 404 |
-| Vi phạm nghiệp vụ | Use case ném exception trong `Domain/Exceptions/` | Theo exception |
+| Vi phạm nghiệp vụ | Use case ném exception trong `Domain/Exception/` | Theo exception |
 | Lỗi không lường trước | Laravel | 500 (kèm stack trace khi `APP_DEBUG=true`) |
 
 Lỗi 422/404 do Laravel trả có format `{"message", "errors"}`, khác với format `{"success", "code", "message", "data"}` của `success()`. Frontend cần xử lý cả hai.
@@ -1035,7 +1155,7 @@ Lỗi 422/404 do Laravel trả có format `{"message", "errors"}`, khác với f
 
 - `GenericQueryParams` có property `search`, `fromDate`, `toDate` nhưng **chưa áp dụng** vào query. Truyền lên không có tác dụng. Cần thì override `applyCustomCriteria()` trong QueryParams riêng.
 - `?ids=1,2,3` hiện bị dịch sai thành `id = '2'` thay vì `id in (1, 2, 3)`. Trong code tự viết, dùng `->whereIn('id', [...])` trực tiếp.
-- `cursor` được đọc vào `QueryCriteria` nhưng `GenericRepository::paginate()` chưa dùng tới (vẫn phân trang theo `page`).
+- `cursor` được đọc vào `QueryCriteria` nhưng `BasePersistenceRepository::paginate()` chưa dùng tới (vẫn phân trang theo `page`).
 - `with` lấy thẳng từ query string, chưa có whitelist. Client gửi tên quan hệ không tồn tại sẽ gây lỗi 500.
 
 ## Viết một tính năng mới
@@ -1057,16 +1177,18 @@ php artisan make:feature User Identity
 ```
 
 ```
-Domain/User.php                                       Model
-Infrastructure/Persistence/Migrations/..._create_users_table.php
-Infrastructure/Persistence/UserRepository.php         Repository
+Domain/Model/User.php                                 Model
+Infrastructure/Persistence/Migration/..._create_users_table.php
+Domain/Port/Out/Persistence/UserRepositoryInterface.php            Interface repository
+Infrastructure/Persistence/Implementation/UserRepository.php      Cài đặt (extends BasePersistenceRepository)
+Infrastructure/Provider/IdentityServiceProvider.php               + binding interface → cài đặt
 Application/Command/  GetUserListCommand, GetUserDetailCommand, CreateUserCommand, UpdateUserCommand, DeleteUserCommand
 Application/Output/   GetUserListOutput, GetUserDetailOutput, CreateUserOutput, UpdateUserOutput
 Application/UseCase/  GetUserListUseCase, GetUserDetailUseCase, CreateUserUseCase, UpdateUserUseCase, DeleteUserUseCase
-Inbound/Rest/V1/Dtos/ CreateUserRequest, UpdateUserRequest, UserResource
-Inbound/Rest/V1/Controllers/UserController.php        index, show, store, update, destroy
-Inbound/Rest/V1/Routes/api.php                        + 5 route /api/v1/users
-Tests/Feature/UserApiTest.php                         Test cho từng endpoint
+Inbound/Rest/V1/Dto/ CreateUserRequest, UpdateUserRequest, UserResource
+Inbound/Rest/V1/Controller/UserController.php        index, show, store, update, destroy
+Inbound/Rest/V1/Route/api.php                        + 5 route /api/v1/users
+Test/Feature/UserApiTest.php                         Test cho từng endpoint
 ```
 
 Code sinh ra **chạy được ngay**: route hoạt động, test pass. Việc còn lại là tìm các dòng `TODO` và điền:
@@ -1074,9 +1196,10 @@ Code sinh ra **chạy được ngay**: route hoạt động, test pass. Việc c
 1. Migration: thêm cột, rồi `php artisan migrate`.
 2. Model: `$fillable`, `$hidden`, quan hệ.
 3. Command + FormRequest: khai báo field và `rules()`. Key trong `rules()` phải trùng tên tham số constructor của Command.
-4. UseCase: map field từ Command sang mảng `create()` / `update()`, thêm logic nghiệp vụ.
-5. Resource: chọn field trả ra JSON. Controller: chỉnh `allowedSorts`.
-6. Test: truyền dữ liệu hợp lệ khi model có cột bắt buộc, rồi `php artisan test --filter=UserApiTest`.
+4. `UserRepositoryInterface`: khai báo method riêng nếu cần (vd `findByEmail`), cài đặt trong `UserRepository`. Method chung (`get`, `paginate`, `create`...) đã có sẵn.
+5. UseCase: map field từ Command sang mảng `create()` / `update()`, thêm logic nghiệp vụ.
+6. Resource: chọn field trả ra JSON. Controller: chỉnh `allowedSorts`.
+7. Test: truyền dữ liệu hợp lệ khi model có cột bắt buộc, rồi `php artisan test --filter=UserApiTest`.
 
 Tuỳ chọn:
 
@@ -1098,7 +1221,7 @@ Tên là động từ + đối tượng, không kèm hậu tố `Command` / `Use
 
 > Chạy qua Docker thì thêm tiền tố `docker compose exec -u sail app` hoặc dùng `sail artisan ...`.
 >
-> Template của hai lệnh nằm trong `stubs/feature/`, code ở `app/Core/Console/Commands/`. Sửa template là mọi feature sinh sau đều đổi theo.
+> Template của hai lệnh nằm trong `stubs/feature/`, code ở `app/Core/Console/Command/`. Sửa template là mọi feature sinh sau đều đổi theo.
 
 ### 4. Code sau khi điền
 
@@ -1121,7 +1244,7 @@ final readonly class CreateUserOutput extends BaseOutput
     public function __construct(public User $user) {}
 }
 
-// Inbound/Rest/V1/Dtos/UserResource.php — chỉ trả các field này ra JSON
+// Inbound/Rest/V1/Dto/UserResource.php — chỉ trả các field này ra JSON
 public function toArray(Request $request): array
 {
     return [
@@ -1131,25 +1254,43 @@ public function toArray(Request $request): array
     ];
 }
 
-// Inbound/Rest/V1/Dtos/CreateUserRequest.php
+// Inbound/Rest/V1/Dto/CreateUserRequest.php
 public function toCommand(): CreateUserCommand
 {
     return new CreateUserCommand(...$this->validated());
 }
 
-// Infrastructure/Persistence/UserRepository.php
-final class UserRepository extends GenericRepository
+// Domain/Port/Out/Persistence/UserRepositoryInterface.php
+interface UserRepositoryInterface extends ReadRepositoryInterface, WriteRepositoryInterface
+{
+    public function findByEmail(string $email): ?User;
+}
+
+// Infrastructure/Persistence/Implementation/UserRepository.php
+final class UserRepository extends BasePersistenceRepository implements UserRepositoryInterface
 {
     public function __construct(User $model)
     {
         parent::__construct($model);
     }
+
+    public function findByEmail(string $email): ?User
+    {
+        $user = $this->first(QueryCriteria::make()->where('email', $email));
+
+        return $user instanceof User ? $user : null;
+    }
 }
+
+// Infrastructure/Provider/IdentityServiceProvider.php
+public array $bindings = [
+    UserRepositoryInterface::class => UserRepository::class,
+];
 
 // Application/UseCase/CreateUserUseCase.php
 final class CreateUserUseCase implements UseCase
 {
-    public function __construct(private readonly UserRepository $users) {}
+    public function __construct(private readonly UserRepositoryInterface $users) {}
 
     public function execute(CreateUserCommand $command): CreateUserOutput
     {
@@ -1163,7 +1304,7 @@ final class CreateUserUseCase implements UseCase
     }
 }
 
-// Inbound/Rest/V1/Controllers/UserController.php
+// Inbound/Rest/V1/Controller/UserController.php
 public function store(CreateUserRequest $request, CreateUserUseCase $useCase): JsonResponse
 {
     $output = $useCase->execute($request->toCommand());
@@ -1171,7 +1312,7 @@ public function store(CreateUserRequest $request, CreateUserUseCase $useCase): J
     return $this->success(new UserResource($output->user), 201);
 }
 
-// Inbound/Rest/V1/Routes/api.php
+// Inbound/Rest/V1/Route/api.php
 Route::prefix('v1')->name('identity.')->group(function () {
     Route::post('users', [UserController::class, 'store'])->name('users.store');
 });
@@ -1320,7 +1461,7 @@ Filament hiện cùng một thông báo cho **hai** trường hợp khác nhau, 
 Kiểm tra nhanh đang rơi vào trường hợp nào:
 
 ```bash
-docker compose exec -u sail app php artisan tinker --execute='$a = App\Modules\Admin\Domain\Model\Admin::where("email", config("admin.account.email"))->first(); echo $a ? "id={$a->id} roles=[".$a->getRoleNames()->implode(",")."] mật khẩu khớp .env: ".var_export(Hash::check(config("admin.account.password"), $a->password), true) : "chưa có tài khoản", PHP_EOL;'
+docker compose exec -u sail app php artisan tinker --execute='$a = App\Module\Admin\Domain\Model\Admin::where("email", config("admin.account.email"))->first(); echo $a ? "id={$a->id} roles=[".$a->getRoleNames()->implode(",")."] mật khẩu khớp .env: ".var_export(Hash::check(config("admin.account.password"), $a->password), true) : "chưa có tài khoản", PHP_EOL;'
 ```
 
 `roles=[]` là trường hợp 1; `mật khẩu khớp .env: false` hoặc "chưa có tài khoản" là trường hợp 2.

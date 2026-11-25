@@ -4,19 +4,26 @@ declare(strict_types=1);
 
 namespace {{ ns.repository }};
 
-use App\Core\Repositories\GenericRepository;
+use App\Core\Repository\BasePersistenceRepository;
 use {{ ns.model }}\{{ Name }};
+use {{ ns.repositoryInterface }}\{{ Name }}RepositoryInterface;
 
-final class {{ Name }}Repository extends GenericRepository
+/**
+ * Cài đặt Eloquent của {{ Name }}RepositoryInterface. Được bind trong ServiceProvider của module.
+ * Bên trong được dùng $this->query() để viết truy vấn phức tạp.
+ */
+final class {{ Name }}Repository extends BasePersistenceRepository implements {{ Name }}RepositoryInterface
 {
     public function __construct({{ Name }} $model)
     {
         parent::__construct($model);
     }
 
-    // Thêm method truy vấn riêng ở đây khi GenericRepository không đủ, ví dụ:
+    // TODO: cài đặt method riêng đã khai báo trong interface, ví dụ:
     // public function findBySlug(string $slug): ?{{ Name }}
     // {
-    //     return $this->first(QueryCriteria::make()->where('slug', $slug));
+    //     ${{ name }} = $this->first(QueryCriteria::make()->where('slug', $slug));
+    //
+    //     return ${{ name }} instanceof {{ Name }} ? ${{ name }} : null;
     // }
 }

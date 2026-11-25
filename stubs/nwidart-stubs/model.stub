@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 %%END_FACTORY%%
-use App\Core\Models\BaseModel;
+use App\Core\Model\BaseModel;
 %%START_FACTORY%%
 use $FACTORY_CLASS$;
 %%END_FACTORY%%

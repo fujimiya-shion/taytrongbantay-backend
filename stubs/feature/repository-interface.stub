@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ ns.repositoryInterface }};
+
+use App\Core\Repository\ReadRepositoryInterface;
+use App\Core\Repository\WriteRepositoryInterface;
+
+/**
+ * Method đọc/ghi chung (get, paginate, findById, create, update, delete...) lấy từ
+ * Read/WriteRepositoryInterface. Ở đây CHỈ khai báo method riêng của {{ Name }}, trả kiểu cụ thể.
+ * Không khai báo query() / trả Builder.
+ */
+interface {{ Name }}RepositoryInterface extends ReadRepositoryInterface, WriteRepositoryInterface
+{
+    // TODO: method riêng, ví dụ:
+    // public function findBySlug(string $slug): ?\{{ ns.model }}\{{ Name }};
+}

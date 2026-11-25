@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace $CLASS_NAMESPACE$;
 
-use App\Core\Http\Controllers\ApiController;
+use App\Core\Http\Controller\ApiController;
 
 /**
  * Chỉ: validate (FormRequest) -> toCommand() -> gọi UseCase -> trả response.

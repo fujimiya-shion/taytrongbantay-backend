@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace {{ ns.command }};
 
 use App\Core\Support\Criteria\QueryCriteria;
-use App\Shared\Commands\QueryCommand;
+use App\Shared\Command\QueryCommand;
 
 final readonly class Get{{ Name }}DetailCommand extends QueryCommand
 {

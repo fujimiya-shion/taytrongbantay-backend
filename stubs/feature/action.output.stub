@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace {{ ns.output }};
 
-use App\Shared\Outputs\BaseOutput;
+use App\Shared\Output\BaseOutput;
 
 final readonly class {{ Action }}Output extends BaseOutput
 {

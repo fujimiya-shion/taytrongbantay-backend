@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace {{ ns.command }};
 
-use App\Shared\Commands\BaseCommand;
+use App\Shared\Command\BaseCommand;
 
 final readonly class Update{{ Name }}Command extends BaseCommand
 {

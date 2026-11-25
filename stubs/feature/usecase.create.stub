@@ -6,18 +6,18 @@ namespace {{ ns.usecase }};
 
 use {{ ns.command }}\Create{{ Name }}Command;
 use {{ ns.output }}\Create{{ Name }}Output;
-use {{ ns.repository }}\{{ Name }}Repository;
-use App\Shared\UseCases\UseCase;
+use {{ ns.repositoryInterface }}\{{ Name }}RepositoryInterface;
+use App\Shared\UseCase\UseCase;
 
 final class Create{{ Name }}UseCase implements UseCase
 {
     public function __construct(
-        private readonly {{ Name }}Repository ${{ names }},
+        private readonly {{ Name }}RepositoryInterface ${{ names }},
     ) {}
 
     public function execute(Create{{ Name }}Command $command): Create{{ Name }}Output
     {
-        // TODO: kiểm tra nghiệp vụ, ném exception trong Domain/Exceptions nếu vi phạm.
+        // TODO: kiểm tra nghiệp vụ, ném exception trong Domain/Exception nếu vi phạm.
 
         ${{ name }} = $this->{{ names }}->create([
             // TODO: 'title' => $command->title,

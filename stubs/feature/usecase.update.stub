@@ -6,13 +6,13 @@ namespace {{ ns.usecase }};
 
 use {{ ns.command }}\Update{{ Name }}Command;
 use {{ ns.output }}\Update{{ Name }}Output;
-use {{ ns.repository }}\{{ Name }}Repository;
-use App\Shared\UseCases\UseCase;
+use {{ ns.repositoryInterface }}\{{ Name }}RepositoryInterface;
+use App\Shared\UseCase\UseCase;
 
 final class Update{{ Name }}UseCase implements UseCase
 {
     public function __construct(
-        private readonly {{ Name }}Repository ${{ names }},
+        private readonly {{ Name }}RepositoryInterface ${{ names }},
     ) {}
 
     public function execute(Update{{ Name }}Command $command): Update{{ Name }}Output

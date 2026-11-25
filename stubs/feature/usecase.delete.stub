@@ -6,15 +6,15 @@ namespace {{ ns.usecase }};
 
 use {{ ns.command }}\Delete{{ Name }}Command;
 use {{ ns.model }}\{{ Name }};
-use {{ ns.repository }}\{{ Name }}Repository;
-use App\Shared\Outputs\VoidOutput;
-use App\Shared\UseCases\UseCase;
+use {{ ns.repositoryInterface }}\{{ Name }}RepositoryInterface;
+use App\Shared\Output\VoidOutput;
+use App\Shared\UseCase\UseCase;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 final class Delete{{ Name }}UseCase implements UseCase
 {
     public function __construct(
-        private readonly {{ Name }}Repository ${{ names }},
+        private readonly {{ Name }}RepositoryInterface ${{ names }},
     ) {}
 
     public function execute(Delete{{ Name }}Command $command): VoidOutput
