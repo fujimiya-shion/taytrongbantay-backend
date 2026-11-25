@@ -6,8 +6,8 @@ use App\Modules\Admin\Application\Policies\RolePolicy;
 use App\Modules\Admin\Domain\Port\Out\Persistence\AdminRepositoryInterface;
 use App\Modules\Admin\Infrastructure\Persistence\Implementations\AdminRepository;
 use Gate;
-use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
+use Nwidart\Modules\Support\ModuleServiceProvider;
 use Spatie\Permission\Models\Role;
 
 class AdminServiceProvider extends ModuleServiceProvider
@@ -45,15 +45,23 @@ class AdminServiceProvider extends ModuleServiceProvider
 
     /**
      * Define module schedules.
-     * 
-     * @param $schedule
+     *
+     * @param  $schedule
      */
     // protected function configureSchedules(Schedule $schedule): void
     // {
     //     $schedule->command('inspire')->hourly();
     // }
 
-    public function boot(): void {
+    public function register(): void {
+        $this->mergeConfigFrom(module_path($this->name, 'Config/config.php'), $this->nameLower);
+        parent::register();
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
+
         Gate::policy(Role::class, RolePolicy::class);
     }
 }

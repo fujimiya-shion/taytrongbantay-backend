@@ -1,9 +1,19 @@
 # Tay Trong Ban Tay — Backend
 
-API backend viết bằng Laravel, chia theo **module** (mỗi nghiệp vụ là một module độc lập) và tổ chức code theo 4 tầng `Domain / Application / Inbound / Infrastructure`.
+Backend Laravel gồm hai phần:
+
+- **REST API** cho client, dưới `/api/v1/...`, chia theo **module** và tổ chức code theo 4 tầng `Domain / Application / Inbound / Infrastructure`.
+- **Trang quản trị Filament** cho nội bộ, dưới `/${ADMIN_PATH}` (mặc định `/admin`), phân quyền bằng Filament Shield.
+
+Mục lục:
 
 - [Tech stack](#tech-stack)
-- [Chạy dự án bằng Docker](#chạy-dự-án-bằng-docker)
+- [Docker Compose hoạt động thế nào](#docker-compose-hoạt-động-thế-nào)
+- [Chạy dự án lần đầu](#chạy-dự-án-lần-đầu)
+- [Dev dùng Windows](#dev-dùng-windows)
+- [Bật, tắt, xem trạng thái](#bật-tắt-xem-trạng-thái)
+- [Vào container để chạy lệnh PHP](#vào-container-để-chạy-lệnh-php)
+- [Trang quản trị Filament và tài khoản super admin](#trang-quản-trị-filament-và-tài-khoản-super-admin)
 - [Cấu hình `.env`](#cấu-hình-env)
 - [Cấu trúc dự án](#cấu-trúc-dự-án)
 - [Luồng xử lý một request](#luồng-xử-lý-một-request)
@@ -17,81 +27,461 @@ API backend viết bằng Laravel, chia theo **module** (mỗi nghiệp vụ là
 |---|---|
 | PHP (trong container) | 8.5 |
 | Laravel | 13 |
-| Module | [nwidart/laravel-modules](https://laravelmodules.com) 13 |
+| Chia module | [nwidart/laravel-modules](https://laravelmodules.com) 13 |
+| Trang quản trị | Filament 5 |
+| Phân quyền trang quản trị | Filament Shield 4 (dùng `spatie/laravel-permission`) |
 | Database | PostgreSQL 18 |
 | Cache / Session / Queue | Redis |
 | Mail (local) | Mailpit |
 
-Môi trường Docker dựa trên Laravel Sail. File liên quan:
+## Docker Compose hoạt động thế nào
 
-- `docker-compose.yaml`: các service `app`, `pgsql`, `redis`, `mailpit`
-- `docker/8.5/`: Dockerfile, `php.ini`, `supervisord.conf` của container `app`
-- `docker/pgsql/create-testing-database.sql`: tự tạo database `testing` cho PHPUnit
+Môi trường local dựa trên Laravel Sail. `docker-compose.yaml` dựng 4 container trong cùng một mạng nội bộ tên `sail`:
 
-Volume được mount với cờ `:z` để chạy được trên máy bật SELinux (Fedora, RHEL...).
+```
+Máy của bạn                          Container (mạng nội bộ "sail")
+──────────────────────────           ─────────────────────────────────────────
+localhost:APP_PORT          ───────► app:80        Laravel (php artisan serve)
+localhost:FORWARD_DB_PORT   ───────► pgsql:5432    PostgreSQL
+localhost:FORWARD_REDIS_PORT ──────► redis:6379    Redis
+localhost:8025              ───────► mailpit:8025  Giao diện Mailpit
 
-## Chạy dự án bằng Docker
+Thư mục project ═══ mount ═════════► app:/var/www/html
+
+Bên trong mạng, app gọi các service khác bằng tên:
+  app ──► pgsql:5432     (DB_HOST=pgsql)
+  app ──► redis:6379     (REDIS_HOST=redis)
+  app ──► mailpit:1025   (MAIL_HOST=mailpit)
+```
+
+| Service | Image | Vai trò | Port máy → container | Dữ liệu lưu ở |
+|---|---|---|---|---|
+| `app` | `sail-8.5/app` (build từ `docker/8.5/`) | Chạy Laravel | `APP_PORT` → 80 | Code mount trực tiếp từ thư mục project |
+| `pgsql` | `postgres:18-alpine` | Database | `FORWARD_DB_PORT` (mặc định 5432) → 5432 | Volume `sail-pgsql` |
+| `redis` | `redis:alpine` | Cache, session, queue | `FORWARD_REDIS_PORT` (mặc định 6379) → 6379 | Volume `sail-redis` |
+| `mailpit` | `axllent/mailpit` | Hộp thư giả, giữ lại mọi mail gửi đi | 1025 (SMTP), 8025 (giao diện web) | Không lưu |
+
+Những điểm cần nắm:
+
+- **Container `app`** được build từ `docker/8.5/Dockerfile` (Ubuntu 24.04, PHP 8.5, Composer, Node). Khi khởi động, script `docker/8.5/start-container` đổi UID của user `sail` trong container thành `WWWUSER` của bạn, rồi `supervisord` chạy `php artisan serve --host=0.0.0.0 --port=80`.
+- **Code được mount**, không copy vào image (`.:/var/www/html:z`). Sửa code trên máy là container thấy ngay, không cần build lại. Cờ `:z` để chạy được trên máy bật SELinux (Fedora, RHEL...).
+- **Các container gọi nhau bằng tên service**: Laravel kết nối DB qua host `pgsql`, Redis qua `redis`, mail qua `mailpit`. Đó là lý do `DB_HOST=pgsql` chứ không phải `localhost`.
+- **Dữ liệu DB và Redis nằm trong volume**, nên `docker compose down` không mất dữ liệu; chỉ `down -v` mới xoá.
+- **Database `testing`** cho PHPUnit được script `docker/pgsql/create-testing-database.sql` tạo tự động, nhưng **chỉ ở lần khởi tạo volume đầu tiên**.
+- `depends_on` chỉ đảm bảo thứ tự bật container, không chờ Postgres sẵn sàng. Ngay sau `up` mà chạy `migrate` bị lỗi kết nối thì đợi vài giây rồi chạy lại.
+
+## Chạy dự án lần đầu
 
 Yêu cầu: Docker và Docker Compose v2. **Máy không cần cài PHP hay Composer.**
 
-### Lần đầu
+> Dùng Windows: xem [Dev dùng Windows](#dev-dùng-windows) trước.
 
 ```bash
-# 1. Tạo file env
+# 1. Tạo file env từ mẫu
 cp .env.example .env
 
-# 2. Cho container chạy bằng đúng user của máy (tránh file bị owner root)
+# 2. Cho container chạy bằng đúng user của máy (tránh file sinh ra bị thuộc root)
 sed -i "s/^WWWUSER=.*/WWWUSER=$(id -u)/; s/^WWWGROUP=.*/WWWGROUP=$(id -g)/" .env
+```
 
-# 3. Build image và chạy toàn bộ service
+**3. Mở `.env` và điền tối thiểu:**
+
+```dotenv
+APP_PORT=8000                       # đổi nếu cổng 8000 đã bị dùng
+DB_PASSWORD=secret                  # không để trống
+SUPER_ADMIN_EMAIL=admin@example.com # tài khoản đăng nhập trang quản trị
+SUPER_ADMIN_PASSWORD=doi-mat-khau-nay
+```
+
+```bash
+# 4. Build image và bật toàn bộ service (lần đầu mất vài phút để build)
 docker compose up -d --build
 
-# 4. Cài thư viện PHP, tạo APP_KEY, chạy migration
+# 5. Cài thư viện PHP. Lệnh này cũng tự chạy filament:upgrade để copy CSS/JS
+#    của Filament vào public/css/filament, public/js/filament
 docker compose exec -u sail app composer install
+
+# 6. Tạo APP_KEY (bắt buộc, thiếu thì mọi trang báo lỗi)
 docker compose exec -u sail app php artisan key:generate
+
+# 7. Tạo bảng
 docker compose exec -u sail app php artisan migrate
 ```
 
-Kiểm tra: mở `http://localhost:8000/up` (đổi `8000` theo `APP_PORT`), thấy trang xanh là chạy được.
+**8. Tạo tài khoản super admin** cho trang quản trị: làm theo [phần dưới](#tạo-tài-khoản-super-admin).
 
-> Luôn thêm `-u sail` khi `exec`. Nếu không, lệnh chạy bằng root và file sinh ra (vendor, migration, log...) sẽ thuộc root trên máy bạn.
+**9. Kiểm tra** (thay `8000` bằng `APP_PORT` của bạn):
 
-### Những lần sau
+| Địa chỉ | Kết quả mong đợi |
+|---|---|
+| `http://localhost:8000/up` | Trang báo "Application up" |
+| `http://localhost:8000/admin` | Chuyển sang trang đăng nhập Filament (đường dẫn theo `ADMIN_PATH`) |
+| `http://localhost:8025` | Giao diện Mailpit |
 
-```bash
-docker compose up -d      # bật
-docker compose down       # tắt (giữ nguyên dữ liệu DB)
-docker compose down -v    # tắt và XOÁ dữ liệu DB, Redis
-```
+## Dev dùng Windows
 
-Chỉ cần `--build` lại khi sửa file trong `docker/8.5/` hoặc đổi `WWWGROUP`.
+Có hai cách, **khuyên dùng cách 1**:
 
-### Gõ lệnh cho ngắn
-
-Sau khi đã `composer install`, có thể dùng Sail thay cho `docker compose exec -u sail app ...`:
-
-```bash
-alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
-
-sail up -d
-sail artisan migrate
-sail composer require ...
-sail test
-sail psql          # vào PostgreSQL
-sail redis         # vào redis-cli
-sail shell         # vào bash trong container
-```
-
-Thêm dòng `alias` vào `~/.bashrc` hoặc `~/.zshrc` để dùng lâu dài.
-
-### Các địa chỉ local
-
-| Service | Địa chỉ (giá trị mặc định) | Biến đổi port |
+| | Cách 1: Docker trong WSL2 | Cách 2: Cài thẳng trên Windows, không Docker |
 |---|---|---|
-| API | `http://localhost:8000` | `APP_PORT` |
-| PostgreSQL (DBeaver, TablePlus...) | `localhost:5432` | `FORWARD_DB_PORT` |
-| Redis | `localhost:6379` | `FORWARD_REDIS_PORT` |
-| Mailpit (xem mail gửi đi) | `http://localhost:8025` | `FORWARD_MAILPIT_DASHBOARD_PORT` |
+| Giống môi trường của team | Giống hệt (cùng PHP 8.5, Postgres 18, Redis) | Tự cài, dễ lệch phiên bản |
+| Công cài đặt | Cài WSL2 + Docker một lần, sau đó làm y như trên Linux | Cài PHP, Composer, PostgreSQL, chỉnh `php.ini`, đổi vài driver trong `.env` |
+| Lệnh trong README | Dùng nguyên văn | Bỏ tiền tố `docker compose exec -u sail app` |
+| Phù hợp khi | Máy chạy được Docker Desktop / WSL2 | Máy yếu, không cài được Docker, hoặc công ty chặn ảo hoá |
+
+### Cách 1: Docker trong WSL2 (khuyên dùng)
+
+WSL2 là một máy Linux chạy bên trong Windows. Project được đặt và chạy **trong WSL2**, nên mọi lệnh trong README dùng được nguyên văn.
+
+**1. Cài WSL2 với Ubuntu.** Mở PowerShell bằng quyền Administrator:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+Khởi động lại máy, mở "Ubuntu" từ Start menu, tạo username và password Linux.
+
+**2. Cài Docker**, chọn một trong hai:
+
+- **Docker Desktop cho Windows** (dễ nhất): khi cài, chọn *Use WSL 2 instead of Hyper-V*. Sau đó vào **Settings → Resources → WSL integration**, bật cho distro **Ubuntu**.
+- **Docker Engine cài thẳng trong Ubuntu** (không cần Docker Desktop): làm theo [hướng dẫn cài Docker Engine cho Ubuntu](https://docs.docker.com/engine/install/ubuntu/), rồi `sudo usermod -aG docker $USER` và mở lại terminal.
+
+Kiểm tra trong terminal Ubuntu:
+
+```bash
+docker version
+docker compose version
+```
+
+**3. Clone project vào ổ của WSL, không phải ổ C:**
+
+```bash
+cd ~
+mkdir -p Workspace && cd Workspace
+git clone <url-repo> taytrongbantay-backend
+cd taytrongbantay-backend
+```
+
+> **Không** đặt project trong `/mnt/c/...` (tức ổ `C:\` của Windows). Đọc ghi file xuyên từ Linux sang ổ Windows chậm hơn rất nhiều lần: `composer install` hay mỗi request `artisan serve` sẽ chậm rõ rệt. Ngoài ra quyền file và UID không khớp với `WWWUSER`, file sinh ra dễ lỗi quyền ghi.
+
+**4. Làm theo [Chạy dự án lần đầu](#chạy-dự-án-lần-đầu)**, gõ lệnh trong terminal Ubuntu. Không cần sửa gì:
+
+- `id -u` / `id -g` trong WSL thường là `1000`, lệnh `sed` ở bước 2 tự điền.
+- Cờ `:z` của volume dành cho SELinux; trên WSL2 Docker tự bỏ qua, không gây lỗi.
+- `.gitattributes` ép mọi file dùng xuống dòng kiểu Linux (LF), nên script `docker/8.5/start-container` không bị lỗi `bash\r` kể cả khi lỡ clone bằng Git for Windows.
+
+**5. Mở project bằng VS Code**
+
+- Cài VS Code trên Windows và extension **WSL** (`ms-vscode-remote.remote-wsl`).
+- Trong terminal Ubuntu, đứng ở thư mục project, gõ `code .`. Góc dưới trái VS Code hiện **WSL: Ubuntu** là đúng.
+- Cài extension PHP / Laravel **trong cửa sổ WSL này**: VS Code sẽ hỏi cài vào WSL, chọn đồng ý.
+
+**6. Truy cập từ Windows:** trình duyệt trên Windows mở `http://localhost:8000` bình thường (WSL2 tự chuyển tiếp `localhost`). DBeaver, TablePlus trên Windows kết nối `localhost:5432`.
+
+**Lưu ý thêm:**
+
+- Mọi lệnh `docker compose`, `git` đều gõ trong terminal Ubuntu, không gõ trong PowerShell hay CMD.
+- WSL2 mặc định được dùng tới 50% RAM của máy. Máy ít RAM thì giới hạn lại bằng file `C:\Users\<tên>\.wslconfig`:
+
+  ```ini
+  [wsl2]
+  memory=6GB
+  ```
+
+  Sau đó chạy `wsl --shutdown` trong PowerShell rồi mở lại Ubuntu.
+
+### Cách 2: Cài thẳng trên Windows, không dùng Docker
+
+#### Cần cài
+
+| Phần mềm | Phiên bản | Ghi chú |
+|---|---|---|
+| PHP | **8.3 trở lên** (khuyên 8.4 hoặc 8.5, bản x64 NTS) | Container của team dùng 8.5 |
+| Composer | 2.x | |
+| PostgreSQL | 18 | Tải [bộ cài của EDB](https://www.postgresql.org/download/windows/); chọn cài kèm pgAdmin nếu cần giao diện |
+| Git | bản mới | Git for Windows |
+| Redis | **không bắt buộc** | Redis không có bản chính thức cho Windows; dùng driver `database` / `file` thay thế (xem bên dưới) |
+| Node.js | không cần | Dự án là API; CSS/JS của Filament đã có sẵn qua `filament:upgrade` |
+
+Cài PHP và Composer, chọn một trong các cách:
+
+- **[Laravel Herd](https://herd.laravel.com/windows)**: một bộ cài có sẵn PHP (đổi phiên bản được), Composer và Node. Bản miễn phí đã đủ PHP; PostgreSQL vẫn cài riêng như bảng trên.
+- **Script cài đặt của Laravel**: mở PowerShell (quyền Administrator):
+
+  ```powershell
+  Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://php.new/install/windows/8.5'))
+  ```
+
+- **Cài tay**: tải PHP từ [windows.php.net](https://windows.php.net/download/), giải nén vào `C:\php`, thêm `C:\php` vào `PATH`; tải Composer từ [getcomposer.org](https://getcomposer.org/download/).
+
+#### Bật extension PHP cần thiết
+
+Mở `php.ini` (gõ `php --ini` để biết đường dẫn; cài tay thì copy `php.ini-development` thành `php.ini`), bỏ dấu `;` ở đầu các dòng:
+
+```ini
+extension_dir = "ext"
+extension=curl
+extension=fileinfo
+extension=intl
+extension=mbstring
+extension=openssl
+extension=pdo_pgsql
+extension=pgsql
+extension=zip
+```
+
+Kiểm tra lại, mỗi tên phải xuất hiện trong danh sách:
+
+```powershell
+php -v
+php -m
+```
+
+Danh sách extension này lấy từ yêu cầu của các thư viện trong `composer.lock`: `intl` và `zip` cho Filament, `pdo_pgsql` để kết nối PostgreSQL. Các extension như `ctype`, `dom`, `filter`, `hash`, `json`, `session`, `tokenizer` có sẵn trong PHP cho Windows.
+
+#### Tạo database
+
+Mở **SQL Shell (psql)** hoặc pgAdmin, đăng nhập bằng user `postgres` (mật khẩu đặt lúc cài):
+
+```sql
+CREATE USER taytrongbantay WITH PASSWORD 'secret';
+CREATE DATABASE taytrongbantay OWNER taytrongbantay;
+CREATE DATABASE testing OWNER taytrongbantay;   -- cho php artisan test
+```
+
+#### Cấu hình `.env`
+
+```powershell
+copy .env.example .env
+```
+
+Sửa các dòng sau trong `.env`. Không có Docker nên host là máy mình, và thay Redis bằng database / file:
+
+```dotenv
+APP_URL=http://localhost:8000
+
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=taytrongbantay
+DB_USERNAME=taytrongbantay
+DB_PASSWORD=secret
+
+# Không có Redis: dùng bảng trong database (đã có migration sẵn)
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+
+# Không có Mailpit: ghi nội dung mail ra storage/logs/laravel.log
+MAIL_MAILER=log
+
+SUPER_ADMIN_EMAIL=admin@example.com
+SUPER_ADMIN_PASSWORD=doi-mat-khau-nay
+```
+
+Các biến `WWWUSER`, `WWWGROUP`, `APP_PORT`, `FORWARD_*` chỉ dành cho Docker, để nguyên.
+
+#### Chạy
+
+Trong PowerShell, đứng ở thư mục project:
+
+```powershell
+composer install
+php artisan key:generate
+php artisan migrate
+php artisan db:seed
+php artisan serve
+```
+
+Mở `http://localhost:8000/up` và `http://localhost:8000/admin`. `php artisan serve` phải để chạy suốt; mở thêm cửa sổ PowerShell khác để gõ lệnh.
+
+Từ đây, mọi lệnh trong README gõ thẳng, **bỏ tiền tố** `docker compose exec -u sail app`. Ví dụ `docker compose exec -u sail app php artisan test` thành `php artisan test`.
+
+#### Hạn chế khi không dùng Docker
+
+- `php artisan pail` (xem log realtime) cần extension `pcntl`, không có trên Windows. Xem log bằng file `storage/logs/laravel.log`.
+- Laravel Octane / Swoole không chạy trên Windows. Dự án hiện dùng `php artisan serve` nên không ảnh hưởng.
+- Phiên bản PHP, PostgreSQL có thể lệch với container của team. Gặp lỗi chỉ xảy ra trên máy mình thì kiểm tra lại bằng Docker trước khi báo lỗi.
+- Không có Mailpit: nội dung mail nằm trong `storage/logs/laravel.log`.
+
+## Bật, tắt, xem trạng thái
+
+```bash
+docker compose up -d              # bật toàn bộ
+docker compose ps                 # xem container nào đang chạy, healthy chưa
+docker compose logs -f app        # xem log của PHP server (Ctrl+C để thoát)
+docker compose restart app        # khởi động lại riêng app (vd sau khi sửa php.ini)
+docker compose down               # tắt, GIỮ dữ liệu DB/Redis
+docker compose down -v            # tắt và XOÁ dữ liệu DB/Redis (sau đó phải migrate + seed lại)
+docker compose up -d --build      # build lại image app
+```
+
+Chỉ cần `--build` khi sửa file trong `docker/8.5/` hoặc đổi `WWWGROUP`. Sửa code PHP thì không cần làm gì, `artisan serve` tự đọc code mới ở request tiếp theo.
+
+## Vào container để chạy lệnh PHP
+
+Máy không cài PHP, nên mọi lệnh `php`, `artisan`, `composer` đều chạy **bên trong container `app`**. Container phải đang chạy (`docker compose up -d`).
+
+### Cách 1: chạy từng lệnh từ máy
+
+```bash
+docker compose exec -u sail app php artisan migrate
+docker compose exec -u sail app composer require vendor/package
+docker compose exec -u sail app php artisan test
+```
+
+Cấu trúc lệnh:
+
+```
+docker compose exec  -u sail   app       php artisan migrate
+│                    │         │         └── lệnh chạy bên trong container
+│                    │         └── tên service trong docker-compose.yaml
+│                    └── chạy bằng user "sail" (UID = WWWUSER của bạn)
+└── chạy lệnh trong container đang chạy
+```
+
+> **Luôn có `-u sail`.** Thiếu nó, lệnh chạy bằng root và file sinh ra (vendor, migration, log, cache...) sẽ thuộc root trên máy bạn, sau đó IDE và `artisan serve` không ghi được vào.
+
+### Cách 2: mở shell trong container rồi gõ như bình thường
+
+Tiện khi cần chạy nhiều lệnh liên tiếp:
+
+```bash
+docker compose exec -u sail app bash
+```
+
+Dấu nhắc đổi thành `sail@...:/var/www/html$`. Từ đây gõ thẳng, không cần tiền tố:
+
+```bash
+php artisan migrate
+php artisan make:feature Post Blog
+composer dump-autoload
+vendor/bin/pint --dirty
+php artisan tinker
+exit                     # quay về máy
+```
+
+`/var/www/html` trong container chính là thư mục project trên máy.
+
+### Cách 3: alias cho gọn
+
+Thêm vào `~/.bashrc` hoặc `~/.zshrc` (chạy lệnh trong thư mục project):
+
+```bash
+alias dce='docker compose exec -u sail app'
+alias art='docker compose exec -u sail app php artisan'
+```
+
+```bash
+art migrate
+art make:feature Post Blog
+dce composer install
+dce bash
+```
+
+Hoặc dùng Sail (có sẵn trong `vendor` sau khi `composer install`): `alias sail='sh vendor/bin/sail'`, rồi `sail artisan migrate`, `sail composer ...`, `sail test`, `sail shell`.
+
+### Vào database và Redis
+
+```bash
+docker compose exec pgsql psql -U taytrongbantay -d taytrongbantay   # thay theo DB_USERNAME / DB_DATABASE
+docker compose exec redis redis-cli
+```
+
+Dùng DBeaver, TablePlus... thì kết nối `localhost:${FORWARD_DB_PORT}` (mặc định 5432) với user/password trong `.env`.
+
+## Trang quản trị Filament và tài khoản super admin
+
+### Trang quản trị nằm ở đâu
+
+| Thành phần | Vị trí |
+|---|---|
+| Đường dẫn | `http://localhost:${APP_PORT}/${ADMIN_PATH}`, mặc định `/admin`. Đổi bằng biến `ADMIN_PATH` trong `.env` |
+| Cấu hình panel (path, guard, plugin, màu) | `app/Modules/Admin/Infrastructure/Providers/FilamentAdminPanelProvider.php` |
+| Model tài khoản quản trị | `app/Modules/Admin/Domain/Model/Admin.php`, bảng `admins` |
+| Guard đăng nhập | `admin` (khai báo trong `config/auth.php`) |
+| Seeder tạo super admin | `app/Modules/Admin/Infrastructure/Seeders/AdminDatabaseSeeder.php` |
+| Cấu hình Shield | `config/filament-shield.php` |
+| Bảng role/permission | `roles`, `permissions`, `model_has_roles`... (`guard_name = admin`) |
+
+Tài khoản quản trị (`admins`) **tách riêng** với user của API (`users`): khác bảng, khác guard, đăng nhập ở hai nơi khác nhau.
+
+**Ai được vào panel** (`Admin::canAccessPanel()`): tài khoản phải có role `super_admin` hoặc ít nhất một role bất kỳ của guard `admin` (`panel_user`, hoặc role tạo trong màn hình Roles). Tài khoản **chưa được gán role** thì nhập đúng mật khẩu vẫn bị từ chối, và Filament **cố ý** báo y như sai mật khẩu ("These credentials do not match our records.") để người ngoài không dò được tài khoản nào tồn tại. Seeder đã tự gán `super_admin` cho tài khoản trong `.env`; tài khoản tạo bằng cách khác thì phải tự gán role.
+
+Email của admin là duy nhất trong số các tài khoản chưa bị xoá mềm: xoá mềm một admin rồi vẫn tạo lại được admin cùng email.
+
+### Tạo tài khoản super admin
+
+Chạy sau khi đã `migrate`. Tất cả lệnh chạy trong container (xem [phần trên](#vào-container-để-chạy-lệnh-php)).
+
+**Bước 1. Điền thông tin tài khoản vào `.env`**
+
+```dotenv
+SUPER_ADMIN_EMAIL=admin@example.com
+SUPER_ADMIN_PASSWORD=doi-mat-khau-nay
+```
+
+Seeder đọc hai biến này qua `config('admin.account.email')` / `config('admin.account.password')` (file `app/Modules/Admin/Config/config.php`).
+
+**Bước 2. Chạy seeder**
+
+```bash
+docker compose exec -u sail app php artisan db:seed
+```
+
+Chỉ một lệnh này là đủ. `DatabaseSeeder` gọi `AdminDatabaseSeeder` (`app/Modules/Admin/Infrastructure/Seeders/`), seeder tự làm hết:
+
+1. Kiểm tra `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`: trống thì dừng với `EmailOrPasswordEmptyException`.
+2. Tìm admin theo email: chưa có thì tạo, có rồi thì cập nhật mật khẩu và tên. Mật khẩu được model tự hash (cast `hashed`).
+3. Chạy `shield:generate --all --option=permissions --panel=admin` để sinh permission cho mọi Resource, Page, Widget của panel (ví dụ `ViewAny:Role`, `Create:Role`...). Chỉ sinh permission, **không sinh file Policy** vào `app/Policies/` (sai cấu trúc module).
+4. Tạo role `super_admin` (guard `admin`) nếu chưa có, gán **toàn bộ** permission của guard `admin` cho role.
+5. Gán role `super_admin` cho tài khoản.
+
+Kết quả mong đợi:
+
+```
+Seeding super admin user: admin@example.com
+Create super admin user successfully
+Assigned role [super_admin] with 12 permissions to admin #1
+```
+
+Seeder chạy lại bao nhiêu lần cũng được: không tạo trùng tài khoản, không gán trùng role, và luôn cập nhật permission mới nhất cho `super_admin`.
+
+Chỉ muốn chạy riêng seeder này:
+
+```bash
+docker compose exec -u sail app php artisan db:seed --class='App\Modules\Admin\Infrastructure\Seeders\AdminDatabaseSeeder'
+```
+
+**Bước 3. Đăng nhập**
+
+Mở `http://localhost:${APP_PORT}/${ADMIN_PATH}/login` (mặc định `http://localhost:8000/admin/login`), đăng nhập bằng `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`. Thấy menu **Roles** là đã đủ quyền.
+
+> `super_admin` có quyền vì được **gán permission thật**, không phải vì được bỏ qua mọi kiểm tra: `config/filament-shield.php` đặt `define_via_gate => false`. Đừng bật `define_via_gate`: khi đó Shield đăng ký `Gate::before` gọi `hasRole()` trên **mọi** user, kể cả `User` của API vốn không có trait `HasRoles`, sẽ gây lỗi.
+
+### Các tình huống hay gặp
+
+| Tình huống | Cần làm |
+|---|---|
+| Đổi mật khẩu super admin | Sửa `SUPER_ADMIN_PASSWORD` trong `.env`, chạy lại `db:seed` (seeder cập nhật tài khoản đã có) |
+| Đã chạy `migrate:fresh` hoặc `down -v` | Role và permission bị xoá theo DB, chạy lại `db:seed` (`migrate:fresh --seed` thì đã tự chạy) |
+| Thêm Resource / Page Filament mới | Chạy lại `db:seed` để sinh permission cho màn hình mới và cấp luôn cho `super_admin` |
+| Sửa role/permission mà quyền không đổi | `php artisan permission:cache-reset` (permission được cache trong Redis) |
+| Tạo thêm tài khoản quản trị | Chưa có màn hình quản lý admin; tạm thời dùng tinker, xem bên dưới |
+
+Tạo thêm tài khoản quản trị bằng tinker:
+
+```bash
+docker compose exec -u sail app php artisan tinker
+```
+
+```php
+$admin = App\Modules\Admin\Domain\Model\Admin::create([
+    'name' => 'Nguyen Van A',
+    'email' => 'a@example.com',
+    'password' => 'mat-khau',   // model tự hash
+]);
+$admin->assignRole('super_admin');   // bắt buộc gán ít nhất 1 role, không thì đăng nhập bị báo sai mật khẩu
+```
 
 ## Cấu hình `.env`
 
@@ -163,6 +553,17 @@ IDE lắng nghe port `9003`. Nếu dùng VS Code, map path `/var/www/html` → t
 ### 6. Môi trường test
 
 `phpunit.xml` tự ghi đè: `DB_DATABASE=testing`, cache/session dạng `array`, queue `sync`, mail `array`. Database `testing` được tạo tự động khi Postgres khởi tạo lần đầu, nên không cần làm gì thêm.
+
+### 7. Trang quản trị và tài khoản super admin
+
+```dotenv
+ADMIN_PATH=admin                      # trang quản trị ở /admin
+SUPER_ADMIN_EMAIL=admin@example.com
+SUPER_ADMIN_PASSWORD=doi-mat-khau-nay
+```
+
+- `ADMIN_PATH`: đường dẫn của panel Filament. Môi trường thật nên đặt khó đoán (vd `internal-ops-0908`).
+- `SUPER_ADMIN_*`: seeder dùng để tạo tài khoản và gán role `super_admin`. Xem [Tạo tài khoản super admin](#tạo-tài-khoản-super-admin).
 
 ## Cấu trúc dự án
 
@@ -825,33 +1226,73 @@ final readonly class GetMyOrdersCommand extends QueryCommand
 
 ## Lệnh thường dùng
 
-Các lệnh dưới đây chạy trong container (`sail ...` hoặc `docker compose exec -u sail app ...`).
+Các lệnh dưới đây chạy trong container (`docker compose exec -u sail app ...`, hoặc gõ thẳng sau khi `docker compose exec -u sail app bash`).
+
+**Database**
 
 ```bash
 php artisan migrate                    # chạy migration của app và mọi module
-php artisan module:migrate Identity    # chỉ migration của 1 module
-php artisan migrate:fresh --seed       # xoá sạch DB, migrate và seed lại
+php artisan migrate:status             # xem migration nào đã chạy
+php artisan module:migrate Admin       # chỉ migration của 1 module
+php artisan migrate:fresh --seed       # XOÁ SẠCH DB, migrate và seed lại (phải chạy lại bước Shield)
+```
+
+**Module và route**
+
+```bash
 php artisan module:list                # liệt kê module, trạng thái bật/tắt
-php artisan module:disable Identity    # tắt module (trạng thái lưu trong modules_statuses.json)
+php artisan module:disable Admin       # tắt module (lưu trong modules_statuses.json)
 php artisan route:list --path=api      # xem route API
+php artisan route:list --path=admin   # xem route trang quản trị (theo ADMIN_PATH)
+```
+
+**Sinh code**
+
+```bash
+php artisan make:feature Post Blog     # bộ CRUD đầy đủ cho entity Post trong module Blog
+php artisan make:action PublishPost Blog
+```
+
+**Filament / phân quyền**
+
+```bash
+php artisan db:seed                    # tạo/cập nhật super admin, sinh permission, gán role super_admin
+php artisan shield:generate --all --option=permissions --panel=admin   # chỉ sinh permission (seeder đã tự gọi)
+php artisan permission:cache-reset     # xoá cache permission
+php artisan filament:upgrade           # copy lại CSS/JS của Filament vào public/
+```
+
+**Kiểm tra, dọn dẹp**
+
+```bash
 php artisan test                       # chạy test
-vendor/bin/pint                        # format code
+vendor/bin/pint --dirty                # format các file đã sửa
+php artisan optimize:clear             # xoá mọi cache (config, route, view...)
 ```
 
 Xem log:
 
 ```bash
 docker compose logs -f app             # log của PHP server
-tail -f storage/logs/laravel.log       # log của Laravel
+tail -f storage/logs/laravel.log       # log của Laravel (chạy trên máy được, file nằm trong project)
 ```
 
 ## Xử lý lỗi thường gặp
 
 **`password authentication failed for user ...`**
-`DB_PASSWORD` trong `.env` khác với mật khẩu Postgres đã khởi tạo, hoặc đang để trống. Sửa `DB_PASSWORD` cho đúng. Nếu muốn khởi tạo lại DB theo `.env` mới thì `docker compose down -v && docker compose up -d` (mất dữ liệu).
+`DB_PASSWORD` trong `.env` khác với mật khẩu Postgres đã khởi tạo, hoặc đang để trống. Postgres chỉ đọc `DB_*` ở **lần khởi tạo volume đầu tiên**. Sửa `DB_PASSWORD` về đúng mật khẩu cũ, hoặc khởi tạo lại DB theo `.env` mới bằng `docker compose down -v && docker compose up -d` (mất dữ liệu).
+
+**`could not translate host name "pgsql"` hoặc `Connection refused` khi chạy `artisan`**
+Đang chạy `php artisan` trên máy thay vì trong container. Thêm tiền tố `docker compose exec -u sail app`. Nếu đang ở trong container rồi thì Postgres chưa sẵn sàng: đợi vài giây (`docker compose ps` thấy `healthy`) rồi chạy lại.
+
+**`service "app" is not running`**
+Container chưa bật: `docker compose up -d`.
 
 **`Bind for 0.0.0.0:8000 failed: port is already allocated`**
-Port đang bị dịch vụ khác dùng. Đổi `APP_PORT` (hoặc `FORWARD_DB_PORT`, `FORWARD_REDIS_PORT`) trong `.env`.
+Port đang bị dịch vụ khác dùng. Đổi `APP_PORT` (hoặc `FORWARD_DB_PORT`, `FORWARD_REDIS_PORT`, `FORWARD_MAILPIT_DASHBOARD_PORT`) trong `.env`, rồi `docker compose up -d`.
+
+**`No application encryption key has been specified`**
+Chưa tạo `APP_KEY`: `docker compose exec -u sail app php artisan key:generate`.
 
 **`Permission denied` với `storage/` hoặc `bootstrap/cache/`, hoặc file trong project thuộc root**
 `WWWUSER`/`WWWGROUP` chưa khớp với user máy, hoặc đã `exec` mà không có `-u sail`. Sửa `.env` rồi chạy:
@@ -863,6 +1304,32 @@ docker compose up -d --build
 
 **Container chạy nhưng không đọc được file (Fedora, RHEL)**
 Do SELinux. Kiểm tra volume trong `docker-compose.yaml` còn cờ `:z`.
+
+**Trang quản trị không có CSS, giao diện vỡ**
+Thiếu file CSS/JS của Filament trong `public/` (các thư mục này nằm trong `.gitignore`): `docker compose exec -u sail app php artisan filament:upgrade`.
+
+**Trang quản trị báo 404**
+Module Admin đang tắt (`php artisan module:list`) hoặc route đang bị cache cũ: `php artisan module:enable Admin` rồi `php artisan optimize:clear`.
+
+**Đăng nhập trang quản trị báo "These credentials do not match our records."**
+Filament hiện cùng một thông báo cho **hai** trường hợp khác nhau, kiểm tra cả hai:
+
+1. **Tài khoản chưa có role** (hay gặp sau `migrate:fresh` hoặc `down -v` mà chưa seed lại): mật khẩu đúng nhưng `canAccessPanel()` từ chối. Chạy `php artisan db:seed`, rồi `php artisan permission:cache-reset`.
+2. **Sai mật khẩu thật**: chưa chạy seeder, `SUPER_ADMIN_*` trong `.env` đang trống, hoặc config bị cache từ trước khi sửa `.env`. Chạy `php artisan config:clear` rồi `php artisan db:seed`.
+
+Kiểm tra nhanh đang rơi vào trường hợp nào:
+
+```bash
+docker compose exec -u sail app php artisan tinker --execute='$a = App\Modules\Admin\Domain\Model\Admin::where("email", config("admin.account.email"))->first(); echo $a ? "id={$a->id} roles=[".$a->getRoleNames()->implode(",")."] mật khẩu khớp .env: ".var_export(Hash::check(config("admin.account.password"), $a->password), true) : "chưa có tài khoản", PHP_EOL;'
+```
+
+`roles=[]` là trường hợp 1; `mật khẩu khớp .env: false` hoặc "chưa có tài khoản" là trường hợp 2.
+
+**Vào được panel nhưng không thấy menu Roles**
+Tài khoản có role nhưng role đó chưa được cấp quyền xem Roles. Đăng nhập bằng super admin, vào Roles để cấp quyền, hoặc gán `super_admin` cho tài khoản đó.
+
+**`Unique violation ... admins_email_unique` khi tạo admin**
+Đã có admin (chưa xoá) dùng email này. Email admin là duy nhất.
 
 **Sửa `.env` nhưng app không nhận**
 Có thể đang dùng config đã cache: `php artisan config:clear`.

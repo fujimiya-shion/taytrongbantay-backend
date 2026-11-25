@@ -24,10 +24,11 @@ class FilamentAdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
+        $adminPath = config('admin.path');
         return $panel
             ->default()
             ->id('admin')
-            ->path('internal-ops-0908')
+            ->path($adminPath)
             ->authGuard('admin')
             ->login()
             ->colors([
