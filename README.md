@@ -594,7 +594,7 @@ stubs/nwidart-stubs/   Template code khi chạy module:make-*
 |---|---|
 | `UseCase/UseCase` | Interface đánh dấu cho mọi use case |
 | `Command` | `BaseCommand`, `VoidCommand`, `QueryCommand` (cho use case dạng đọc): input của use case |
-| `Output` | `BaseOutput`, `VoidOutput`, `PaginationOutput`: output của use case |
+| `Output` | `BaseOutput`, `VoidOutput`, `PaginationOutput` (phân trang theo trang), `CursorPaginationOutput` (phân trang theo cursor): output của use case |
 | `Security/PasswordHasher` | Hash và kiểm tra mật khẩu |
 
 ### `app/Module/<Module>`
@@ -648,7 +648,7 @@ Mỗi repository gồm **interface** ở Domain và **cài đặt** ở Infrastr
 
 ```
 app/Core/Repository/
-├── ReadRepositoryInterface      findById, first, get, paginate, count, max, autoComplete
+├── ReadRepositoryInterface      findById, first, get, paginate, cursorPaginate, count, max, autoComplete
 ├── WriteRepositoryInterface     create, createOrUpdate, update, delete
 ├── BasePersistenceRepository    cài đặt Eloquent của Read + Write, thêm query() dùng nội bộ
 └── RepositoryDecorator          base cho decorator: chuyển tiếp mọi method Read/Write xuống $inner
@@ -905,7 +905,18 @@ Từng điểm cần biết:
 - **Giới hạn phân trang:** `page` nhỏ nhất là 1, `perPage` bị kẹp trong khoảng 1–100. Client gửi `perPage=10000` thì vẫn chỉ lấy 100.
 - **Whitelist cột sort:** `orderBy` chỉ được áp dụng nếu cột nằm trong `allowedSorts`. Client gửi `orderBy=password` thì **bị bỏ qua lặng lẽ**, không báo lỗi. Truyền `allowedSorts` rỗng nghĩa là cho sort mọi cột, nên luôn truyền danh sách.
 - **Chiều sort:** chỉ `asc` được giữ, mọi giá trị khác đều thành `desc`.
-- **Filter:** `applyCustomCriteria()` là hook để class con quyết định property nào thành điều kiện `where`. `GenericQueryParams` chỉ map `status` → `where status = ?` và `ids` → `where id in (...)`.
+- **Eager-load (`?with=`):** chỉ quan hệ nằm trong tham số thứ hai `allowedRelations` mới được load, ví dụ `toCriteria(allowedSorts: [...], allowedRelations: ['roles'])`. Không truyền thì `?with=` bị **bỏ qua hoàn toàn**, để client không load dữ liệu ngoài ý muốn và không gây lỗi 500 bằng tên quan hệ sai.
+- **Filter:** `applyCustomCriteria()` là hook để class con quyết định property nào thành điều kiện `where`. `GenericQueryParams` map sẵn:
+
+  | Query string | Điều kiện |
+  |---|---|
+  | `status=active` | `status = 'active'` |
+  | `ids=1,2,3` | `id IN (1, 2, 3)` |
+  | `search=an` | `name ILIKE '%an%'` (không phân biệt hoa thường; `%` và `_` client gửi được escape) |
+  | `fromDate=2026-01-01` | `created_at >= '2026-01-01 00:00:00'` |
+  | `toDate=2026-01-31` | `created_at <= '2026-01-31 23:59:59'` (chỉ có ngày thì tính tới cuối ngày) |
+
+  Ngày sai định dạng thì filter đó bị bỏ qua, không lỗi. Cột tìm kiếm / cột ngày khác `name` / `created_at` thì tạo class con và override `searchColumn()` / `dateColumn()`.
 - **Bất biến (immutable):** mọi method của `QueryCriteria` (`where`, `orderBy`, `paginate`...) đều trả về **bản sao mới**, không sửa object cũ. Nhờ vậy có thể tạo một criteria gốc rồi dùng lại nhiều nơi mà không sợ bị ảnh hưởng chéo:
 
   ```php
@@ -918,7 +929,8 @@ Cách viết điều kiện với `where()`:
 ```php
 ->where('status', 'active')                  // status = 'active'
 ->where('age', '>=', 18)                     // age >= 18
-->where('name', 'like', 'An%')               // name like 'An%'
+->where('name', 'like', 'An%')               // name like 'An%' (phân biệt hoa thường trên PostgreSQL)
+->where('name', 'ilike', '%an%')             // không phân biệt hoa thường
 ->whereIn('id', [1, 2, 3])                   // id in (1, 2, 3)
 ->whereBetween('created_at', [$from, $to])
 ->whereNull('deleted_at')
@@ -1134,10 +1146,44 @@ Trong `bootstrap/app.php`, mọi request tới `api/*` đều được trả l�
 | Dữ liệu không hợp lệ | FormRequest | 422 |
 | `authorize()` trả `false` | FormRequest | 403 |
 | Không tìm thấy bản ghi (`findOrFail`, `firstOrFail`) | Laravel tự bắt `ModelNotFoundException` | 404 |
-| Vi phạm nghiệp vụ | Use case ném exception trong `Domain/Exception/` | Theo exception |
+| Vi phạm nghiệp vụ | Use case ném exception `extends BusinessException`, `bootstrap/app.php` đổi sang JSON | 422, hoặc theo `status()` của exception |
 | Lỗi không lường trước | Laravel | 500 (kèm stack trace khi `APP_DEBUG=true`) |
 
 Lỗi 422/404 do Laravel trả có format `{"message", "errors"}`, khác với format `{"success", "code", "message", "data"}` của `success()`. Frontend cần xử lý cả hai.
+
+#### Lỗi nghiệp vụ: `BusinessException`
+
+Mọi lỗi nghiệp vụ extends `App\Core\Exception\BusinessException`, đặt trong `Domain/Exception/` của module:
+
+```php
+final class EmailAlreadyExistsException extends BusinessException
+{
+    public function __construct(string $email)
+    {
+        parent::__construct("Email [{$email}] đã tồn tại.", errors: ['email' => ['Email đã tồn tại.']]);
+    }
+
+    public function status(): int
+    {
+        return 409; // mặc định 422
+    }
+}
+
+// Trong use case
+if ($this->users->findByEmail($command->email) !== null) {
+    throw new EmailAlreadyExistsException($command->email);
+}
+```
+
+Client nhận (cùng format với `ApiBehavior::error()`):
+
+```json
+{ "success": false, "code": 409, "message": "Email [an@example.com] đã tồn tại.", "errors": { "email": ["Email đã tồn tại."] } }
+```
+
+- Exception chỉ mang dữ liệu, không import gì của HTTP. Việc dựng JSON nằm ở **một chỗ duy nhất**: `withExceptions()` trong `bootstrap/app.php`.
+- Lỗi nghiệp vụ không bị ghi vào log lỗi (`dontReport`), vì đó là hành vi dự kiến.
+- Use case không bắt lỗi rồi trả mảng `['success' => false]`; cứ ném exception.
 
 ### Vì sao chia nhiều lớp như vậy
 
@@ -1149,14 +1195,18 @@ Lỗi 422/404 do Laravel trả có format `{"message", "errors"}`, khác với f
 | Sao query phải qua repository? | Gom mọi câu SQL về một nơi. Dễ tối ưu, dễ thêm index, dễ tìm khi debug. |
 | Sao `QueryCriteria` lại bất biến? | Criteria được truyền qua nhiều lớp. Nếu lớp nào đó sửa trực tiếp thì lớp khác bị ảnh hưởng mà không biết. |
 
-### Giới hạn hiện tại của `Core`
+### Phân trang theo cursor
 
-Đây là hành vi **đang có** trong code, cần biết để không bất ngờ:
+Ngoài `paginate()` (theo số trang, có tổng số bản ghi), repository có `cursorPaginate()`: không đếm tổng, không lệch dữ liệu khi có bản ghi mới chen vào giữa các trang. Hợp cho infinite scroll hoặc bảng rất lớn.
 
-- `GenericQueryParams` có property `search`, `fromDate`, `toDate` nhưng **chưa áp dụng** vào query. Truyền lên không có tác dụng. Cần thì override `applyCustomCriteria()` trong QueryParams riêng.
-- `?ids=1,2,3` hiện bị dịch sai thành `id = '2'` thay vì `id in (1, 2, 3)`. Trong code tự viết, dùng `->whereIn('id', [...])` trực tiếp.
-- `cursor` được đọc vào `QueryCriteria` nhưng `BasePersistenceRepository::paginate()` chưa dùng tới (vẫn phân trang theo `page`).
-- `with` lấy thẳng từ query string, chưa có whitelist. Client gửi tên quan hệ không tồn tại sẽ gây lỗi 500.
+```php
+// Client gửi ?cursor=<chuỗi nextCursor của lần trước>&perPage=20; BaseQueryParams đọc sẵn cursor vào QueryCriteria
+final readonly class GetPostFeedOutput extends CursorPaginationOutput {}
+
+return new GetPostFeedOutput($this->posts->cursorPaginate($command->criteria));
+```
+
+Không có `orderBy` thì Eloquent tự sắp theo khoá chính để cursor ổn định.
 
 ## Viết một tính năng mới
 

@@ -43,18 +43,20 @@ app/Module/   Code nghiệp vụ. Mọi tính năng mới viết ở đây.
 |---|---|
 | `App\Core\Http\Controller\ApiController` | Base của mọi controller. Có `success($data, $code = 200, $message = 'success')` và `error($code, $message, $errors)` |
 | `App\Core\Model\BaseModel` | Base của mọi model |
-| `App\Core\Repository\ReadRepositoryInterface` | Khả năng đọc chung: `findById`, `first`, `get`, `paginate`, `count`, `max`, `autoComplete` (đều nhận `?QueryCriteria`). Interface repository của module extends cái này |
+| `App\Core\Repository\ReadRepositoryInterface` | Khả năng đọc chung: `findById`, `first`, `get`, `paginate`, `cursorPaginate`, `count`, `max`, `autoComplete` (đều nhận `?QueryCriteria`). Interface repository của module extends cái này |
 | `App\Core\Repository\WriteRepositoryInterface` | Khả năng ghi chung: `create`, `createOrUpdate`, `update`, `delete` |
 | `App\Core\Repository\BasePersistenceRepository` | Cài đặt Eloquent của Read + Write, có thêm `query()` chỉ dùng nội bộ. Class cài đặt repository extends cái này |
 | `App\Core\Repository\RepositoryDecorator` | Base cho decorator (cache...): chuyển tiếp sẵn mọi method Read/Write xuống `$inner` |
 | `App\Core\Support\Criteria\QueryCriteria` | Điều kiện truy vấn bất biến: `where`, `whereIn`, `whereBetween`, `whereNull`, `with`, `select`, `orderBy`, `paginate`, `perPage`, `limit`, `cursor` |
-| `App\Core\DTO\GenericQueryParams` / `BaseQueryParams` | `::fromRequest($request)->toCriteria(allowedSorts: [...])` |
+| `App\Core\DTO\GenericQueryParams` / `BaseQueryParams` | `::fromRequest($request)->toCriteria(allowedSorts: [...], allowedRelations: [...])`. Generic đã map `status`, `ids` (IN), `search` (ILIKE cột `name`), `fromDate` / `toDate` (cột `created_at`) |
+| `App\Core\Exception\BusinessException` | Base của mọi exception nghiệp vụ; `status()` mặc định 422, `errors()`. `bootstrap/app.php` tự đổi sang JSON |
 | `App\Shared\UseCase\UseCase` | Interface đánh dấu, mọi use case implement |
 | `App\Shared\Command\BaseCommand` | Base Command của flow ghi |
 | `App\Shared\Command\QueryCommand` | Base Command của flow đọc, có sẵn `public QueryCriteria $criteria` |
 | `App\Shared\Command\VoidCommand` | Use case không cần input |
 | `App\Shared\Output\BaseOutput` / `VoidOutput` | Base Output / use case không trả gì |
 | `App\Shared\Output\PaginationOutput` | Output dạng phân trang, có sẵn `public LengthAwarePaginator $paginator` |
+| `App\Shared\Output\CursorPaginationOutput` | Output phân trang theo cursor, có sẵn `public CursorPaginator $paginator` (dùng với `cursorPaginate()`) |
 | `App\Shared\Security\PasswordHasher` | `hash`, `matches`, `isHash`. Không gọi thẳng `Hash::` trong use case |
 
 Tìm trong bảng này trước khi viết helper mới. Không tạo bản trùng lặp.
@@ -299,7 +301,7 @@ public function execute(GetUserListCommand $command): GetUserListOutput
 public function index(Request $request, GetUserListUseCase $useCase): JsonResponse
 {
     $criteria = GenericQueryParams::fromRequest($request)
-        ->toCriteria(allowedSorts: ['name', 'created_at']);
+        ->toCriteria(allowedSorts: ['name', 'created_at'], allowedRelations: ['roles']);
 
     $output = $useCase->execute(new GetUserListCommand($criteria));
 
@@ -343,9 +345,8 @@ Không dùng `auth:sanctum`: Sanctum chưa được cài.
 ## 9. Lỗi và response
 
 - Lỗi validate: để FormRequest tự trả 422.
-- Lỗi nghiệp vụ: ném exception trong `Domain/Exception/` (`module:make-exception`). Không trả mảng `['success' => false]` từ use case.
+- Lỗi nghiệp vụ: ném exception trong `Domain/Exception/`, **bắt buộc** `extends App\Core\Exception\BusinessException`; override `status()` nếu không phải 422, truyền `errors:` nếu có lỗi theo field. Không tự bắt rồi trả mảng `['success' => false]` từ use case, không render JSON trong exception.
 - Response thành công luôn qua `$this->success()`. Không dùng `response()->json()` trực tiếp trong controller.
-- `error()` hiện có tham số bắt buộc `$errors` đứng sau tham số có default, nên luôn truyền đủ 3 tham số: `$this->error(409, 'Email đã tồn tại', [])`.
 
 ## 10. Database
 
@@ -373,6 +374,5 @@ Không dùng `auth:sanctum`: Sanctum chưa được cài.
 
 ## 13. Vấn đề đã biết
 
-- `config/auth.php`, `database/factories/UserFactory.php`, `database/seeders/DatabaseSeeder.php` còn import `App\Models\User` (class đã bị xoá). Không tự sửa; hỏi người dùng nếu task đụng tới auth hoặc seeder.
 - Không chạy `composer require laravel/boost` hay `boost:install`: lệnh này ghi đè file này.
-- `GenericQueryParams` chưa áp dụng `search`, `fromDate`, `toDate`; `?ids=1,2,3` bị dịch sai thành `id = '2'`; `cursor` không được `BasePersistenceRepository::paginate()` dùng. Trong code mới, tự viết điều kiện bằng `whereIn()` / `applyCustomCriteria()`, không dựa vào các field này. Không tự sửa `Core` nếu không được yêu cầu.
+- `?with=` chỉ load quan hệ trong `allowedRelations`; không truyền thì bị bỏ qua. Luôn truyền whitelist khi màn hình cần eager-load.

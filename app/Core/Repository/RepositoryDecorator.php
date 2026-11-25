@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Repository;
 
 use App\Core\Support\Criteria\QueryCriteria;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -58,6 +59,11 @@ abstract class RepositoryDecorator implements ReadRepositoryInterface, WriteRepo
     public function paginate(?QueryCriteria $criteria = null): LengthAwarePaginator
     {
         return $this->inner->paginate($criteria);
+    }
+
+    public function cursorPaginate(?QueryCriteria $criteria = null): CursorPaginator
+    {
+        return $this->inner->cursorPaginate($criteria);
     }
 
     public function count(?QueryCriteria $criteria = null): int

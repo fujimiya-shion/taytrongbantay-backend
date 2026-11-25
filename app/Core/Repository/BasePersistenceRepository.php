@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Repository;
 
 use App\Core\Support\Criteria\QueryCriteria;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -47,6 +48,18 @@ abstract class BasePersistenceRepository implements BasePersistenceRepositoryInt
             perPage: $criteria->getPerPage(),
             columns: $criteria->getColumns(),
             page: $criteria->getPage(),
+        );
+    }
+
+    public function cursorPaginate(?QueryCriteria $criteria = null): CursorPaginator
+    {
+        $criteria ??= QueryCriteria::make();
+
+        // Không có orderBy thì Eloquent tự sắp theo khoá chính để cursor ổn định.
+        return $this->query($criteria)->cursorPaginate(
+            perPage: $criteria->getPerPage(),
+            columns: $criteria->getColumns(),
+            cursor: $criteria->getCursor(),
         );
     }
 

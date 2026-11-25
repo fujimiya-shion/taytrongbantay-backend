@@ -1,7 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace $CLASS_NAMESPACE$;
 
-use Exception;
+use App\Core\Exception\BusinessException;
 
-class $CLASS$ extends Exception {}
+/**
+ * Lỗi nghiệp vụ: bootstrap/app.php tự đổi sang JSON { success, code, message, errors }.
+ */
+final class $CLASS$ extends BusinessException
+{
+    // public function __construct()
+    // {
+    //     parent::__construct('Mô tả lỗi cho client', errors: ['field' => ['Chi tiết lỗi']]);
+    // }
+
+    // Mặc định 422. Override khi cần: 409 trùng dữ liệu, 403 không đủ quyền theo nghiệp vụ...
+    // public function status(): int
+    // {
+    //     return 409;
+    // }
+}

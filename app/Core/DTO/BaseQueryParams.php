@@ -14,9 +14,13 @@ use ReflectionProperty;
 abstract class BaseQueryParams
 {
     public ?int $page = null;
+
     public int $perPage = 15;
+
     public ?string $cursor = null;
+
     public ?string $orderBy = null;
+
     public string $orderDirection = 'desc';
 
     /** @var string[] */
@@ -37,13 +41,13 @@ abstract class BaseQueryParams
      */
     public static function fromArray(array $data): static
     {
-        $instance = new static();
+        $instance = new static;
         $reflection = new ReflectionClass($instance);
 
         foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
             $name = $property->getName();
 
-            if (!array_key_exists($name, $data) || $data[$name] === null || $data[$name] === '') {
+            if (! array_key_exists($name, $data) || $data[$name] === null || $data[$name] === '') {
                 continue;
             }
 
@@ -60,7 +64,7 @@ abstract class BaseQueryParams
     {
         $type = $property->getType();
 
-        if (!$type instanceof ReflectionNamedType) {
+        if (! $type instanceof ReflectionNamedType) {
             return $value;
         }
 
@@ -90,13 +94,13 @@ abstract class BaseQueryParams
      */
     public function getFilterValues(): array
     {
-        $baseProps = ['page', 'perPage', 'orderBy', 'orderDirection', 'with'];
+        $baseProps = ['page', 'perPage', 'cursor', 'orderBy', 'orderDirection', 'with'];
         $filters = [];
 
         foreach ((new ReflectionClass($this))->getProperties(ReflectionProperty::IS_PUBLIC) as $prop) {
             $name = $prop->getName();
 
-            if (in_array($name, $baseProps, true) || !$prop->isInitialized($this)) {
+            if (in_array($name, $baseProps, true) || ! $prop->isInitialized($this)) {
                 continue;
             }
 
@@ -114,9 +118,11 @@ abstract class BaseQueryParams
     /**
      * Chuyển đổi trực tiếp sang QueryCriteria cho tầng Repository
      *
-     * @param  string[]  $allowedSorts
+     * @param  string[]  $allowedSorts  Cột được phép sort. Rỗng = cho sort mọi cột.
+     * @param  string[]  $allowedRelations  Quan hệ được phép eager-load qua ?with=.
+     *                                      Rỗng = bỏ qua ?with= hoàn toàn (mặc định an toàn).
      */
-    public function toCriteria(array $allowedSorts = []): QueryCriteria
+    public function toCriteria(array $allowedSorts = [], array $allowedRelations = []): QueryCriteria
     {
         $criteria = QueryCriteria::make();
 
@@ -124,8 +130,11 @@ abstract class BaseQueryParams
             ? $criteria->paginate($this->page, $this->perPage)
             : $criteria->perPage($this->perPage);
 
-        if (!empty($this->with)) {
-            $criteria = $criteria->with($this->with);
+        // Chỉ eager-load quan hệ nằm trong whitelist: client gửi tên quan hệ không tồn tại
+        // sẽ gây RelationNotFoundException (500), và không được tự ý load dữ liệu ngoài ý muốn.
+        $relations = array_values(array_intersect($this->with, $allowedRelations));
+        if ($relations !== []) {
+            $criteria = $criteria->with($relations);
         }
 
         if ($this->orderBy !== null) {

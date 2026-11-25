@@ -22,15 +22,18 @@ class QueryCriteria
     protected array $orders = [];
 
     protected ?int $page = null;
+
     protected int $perPage = 15;
+
     protected ?string $cursor = null;
+
     protected ?int $limit = null;
 
     public function __construct() {}
 
     public static function make(): static
     {
-        return new static();
+        return new static;
     }
 
     /* =========================
@@ -68,27 +71,55 @@ class QueryCriteria
         return $clone;
     }
 
+    /**
+     * Operator mà applyTo() hiểu được. Dùng để phân biệt tuple ['>=', 18]
+     * với danh sách giá trị ['1', '2', '3'] (cả hai đều là mảng list).
+     */
+    public const OPERATORS = [
+        '=', '!=', '<>', '>', '>=', '<', '<=',
+        'like', 'not like', 'ilike',
+        'in', 'not in', 'nin',
+        'between', 'not between',
+        'null', 'not null',
+    ];
+
+    /**
+     * - giá trị đơn:                          ['status' => 'active']        -> status = 'active'
+     * - null:                                 ['deleted_at' => null]        -> deleted_at IS NULL
+     * - tuple [operator, giá trị]:            ['age' => ['>=', 18]]         -> age >= 18
+     * - mọi mảng khác là danh sách giá trị:   ['id' => ['1', '2', '3']]     -> id IN (...)
+     *
+     * Chỉ coi là tuple khi mảng có đúng 2 phần tử VÀ phần tử đầu là operator hợp lệ.
+     * Nhờ vậy danh sách chuỗi (id tách từ query string "1,2,3", uuid, status...) luôn ra IN.
+     */
     protected function parseArrayCondition(string $column, mixed $value): static
     {
-        if (!is_array($value)) {
+        if (! is_array($value)) {
             $this->wheres[] = [$column, $value === null ? 'null' : '=', $value];
 
             return $this;
         }
 
-        // Nếu là mảng thuần list giá trị: ['id' => [1, 2, 3]] -> tự hiểu là 'in'
-        if (array_is_list($value) && !isset($value[0]) || (isset($value[0]) && !is_string($value[0]))) {
-            $this->wheres[] = [$column, 'in', $value];
+        if ($this->isOperatorTuple($value)) {
+            $this->wheres[] = [$column, strtolower(trim($value[0])), $value[1]];
 
             return $this;
         }
 
-        // Dạng tuple ['>=', 18] hoặc ['between', [1, 10]]
-        $op = strtolower((string) ($value[0] ?? '='));
-        $val = $value[1] ?? null;
-        $this->wheres[] = [$column, $op, $val];
+        $this->wheres[] = [$column, 'in', array_values($value)];
 
         return $this;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $value
+     */
+    private function isOperatorTuple(array $value): bool
+    {
+        return array_is_list($value)
+            && count($value) === 2
+            && is_string($value[0])
+            && in_array(strtolower(trim($value[0])), self::OPERATORS, true);
     }
 
     /** @param mixed[] $values */
@@ -113,7 +144,8 @@ class QueryCriteria
         return $this->where($column, 'not null', null);
     }
 
-    public function cursor(?string $cursor, int $perPage = 15): static {
+    public function cursor(?string $cursor, int $perPage = 15): static
+    {
         $clone = clone $this;
         $clone->cursor = $cursor;
         $clone->perPage = max(1, min(100, $perPage));
@@ -121,7 +153,8 @@ class QueryCriteria
         return $clone;
     }
 
-    public function getCursor(): ?string {
+    public function getCursor(): ?string
+    {
         return $this->cursor;
     }
 
@@ -143,7 +176,7 @@ class QueryCriteria
     public function select(array $columns): static
     {
         $clone = clone $this;
-        $clone->columns = !empty($columns) ? $columns : ['*'];
+        $clone->columns = ! empty($columns) ? $columns : ['*'];
 
         return $clone;
     }
@@ -181,7 +214,7 @@ class QueryCriteria
             return $this;
         }
 
-        if (!empty($allowedSorts) && !in_array($column, $allowedSorts, true)) {
+        if (! empty($allowedSorts) && ! in_array($column, $allowedSorts, true)) {
             return $this;
         }
 
@@ -198,7 +231,7 @@ class QueryCriteria
 
     public function applyTo(Builder $query, ?Model $model = null): Builder
     {
-        if (!empty($this->with)) {
+        if (! empty($this->with)) {
             $query->with($this->with);
         }
 
@@ -212,6 +245,8 @@ class QueryCriteria
                 'not between' => $query->whereNotBetween($col, is_array($val) ? $val : []),
                 'null' => $query->whereNull($col),
                 'not null' => $query->whereNotNull($col),
+                // Không phân biệt hoa thường, Laravel tự dịch đúng cho từng DB (ILIKE trên PostgreSQL).
+                'ilike' => $query->whereLike($col, (string) $val, caseSensitive: false),
                 'like', 'not like', '=', '!=', '<>', '>', '>=', '<', '<=' => $query->where($col, $op, $val),
                 default => $query->where($col, '=', $val),
             };
@@ -235,7 +270,7 @@ class QueryCriteria
 
     public function hasOrders(): bool
     {
-        return !empty($this->orders);
+        return ! empty($this->orders);
     }
 
     public function getPage(): int

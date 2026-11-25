@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Repository;
 
 use App\Core\Support\Criteria\QueryCriteria;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -27,6 +28,12 @@ interface ReadRepositoryInterface
     public function get(?QueryCriteria $criteria = null): Collection;
 
     public function paginate(?QueryCriteria $criteria = null): LengthAwarePaginator;
+
+    /**
+     * Phân trang theo cursor (dùng QueryCriteria::cursor()), hợp cho infinite scroll / bảng lớn:
+     * không đếm tổng, không bị lệch khi dữ liệu thêm mới giữa các trang.
+     */
+    public function cursorPaginate(?QueryCriteria $criteria = null): CursorPaginator;
 
     public function count(?QueryCriteria $criteria = null): int;
 
